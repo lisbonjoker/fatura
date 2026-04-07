@@ -8,8 +8,10 @@ Generate invoices from the command line.
 
 ```bash
 invoice generate --from "Dream, Inc." --to "Imagine, Inc." \
-    --item "Rubber Duck" --quantity 2 --rate 25 \
+    --item "Rubber Duck" --quantity 0.25 --rate 25 \
+    --item-date "Apr 07, 2026" --item-time "08:32-16:43" \
     --vat 0.23 --discount 0.15 \
+    --payment-terms "NET 15" \
     --seller-vat-id "PT501234567" --buyer-vat-id "PT509876543" \
     --country-code "PT" \
     --supply-date "Apr 07, 2026" \
@@ -45,6 +47,9 @@ Generate new invoice:
 invoice generate \
     --item "Yellow Rubber Duck" --quantity 5 \
     --item "Special Edition Plaid Rubber Duck" --quantity 1 \
+    --from-line "Dream, Inc." --from-line "123 Main St" --from-line "+1 555 0100" \
+    --to-line "Imagine, Inc." --to-line "500 Elm St" \
+    --item-columns "date,time,category,qty,amount" \
     --note "For debugging purposes." \
     --output duck-invoice.pdf
 ```
@@ -67,8 +72,13 @@ Or, save repeated information with JSON / YAML:
     "exemption_reason": "",
     "legal_reference": "",
     "items": ["Yellow Rubber Duck", "Special Edition Plaid Rubber Duck"],
-    "quantities": [5, 1],
+    "quantities": [5, 0.25],
     "rates": [25, 25],
+    "item_dates": ["Apr 06, 2026", "Apr 07, 2026"],
+    "item_times": ["08:32-16:43", "09:00-10:00"],
+    "item_categories": ["Support", "Project 1102"],
+    "item_columns": "date,time,category,qty,amount",
+    "payment_terms": "NET 15"
 }
 ```
 
