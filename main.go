@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -85,6 +86,7 @@ var (
 	output         string
 	fromLines      []string
 	toLines        []string
+	quantityInput  []string
 	file           = Invoice{}
 	defaultInvoice = DefaultInvoice()
 )
@@ -97,7 +99,7 @@ func init() {
 	generateCmd.Flags().StringVar(&file.Title, "title", "INVOICE", "Title")
 
 	generateCmd.Flags().Float64SliceVarP(&file.Rates, "rate", "r", defaultInvoice.Rates, "Rates")
-	generateCmd.Flags().Float64SliceVarP(&file.Quantities, "quantity", "q", defaultInvoice.Quantities, "Quantities")
+	generateCmd.Flags().StringSliceVarP(&quantityInput, "quantity", "q", []string{"2"}, "Quantities (supports decimals, e.g. 0.25)")
 	generateCmd.Flags().StringSliceVarP(&file.Items, "item", "i", defaultInvoice.Items, "Items")
 	generateCmd.Flags().StringSliceVar(&file.ItemDates, "item-date", nil, "Item dates")
 	generateCmd.Flags().StringSliceVar(&file.ItemTimes, "item-time", nil, "Item times (e.g. 08:32-16:43)")
@@ -151,6 +153,9 @@ var generateCmd = &cobra.Command{
 		}
 		applyPortugueseExemptionPreset(&file)
 		applyAddressLines(cmd, &file)
+		if err := applyQuantities(cmd, &file); err != nil {
+			return err
+		}
 		applyItemColumnVisibility(&file)
 		if err := validateInvoiceCompliance(file); err != nil {
 			return err
@@ -256,6 +261,33 @@ func applyItemColumnVisibility(invoice *Invoice) {
 	invoice.ShowQuantityColumn = has("qty")
 	invoice.ShowRateColumn = has("rate")
 	invoice.ShowAmountColumn = has("amount")
+}
+
+func applyQuantities(cmd *cobra.Command, invoice *Invoice) error {
+	if !cmd.Flags().Changed("quantity") {
+		return nil
+	}
+
+	parsed := make([]float64, 0, len(quantityInput))
+	for _, raw := range quantityInput {
+		parts := strings.Split(raw, ",")
+		for _, part := range parts {
+			value := strings.TrimSpace(part)
+			if value == "" {
+				continue
+			}
+			qty, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				return fmt.Errorf("invalid quantity %q: expected a number (e.g. 1, 0.5, 0.25)", value)
+			}
+			parsed = append(parsed, qty)
+		}
+	}
+	if len(parsed) == 0 {
+		return fmt.Errorf("at least one non-empty --quantity value is required when --quantity is provided")
+	}
+	invoice.Quantities = parsed
+	return nil
 }
 
 func main() {
