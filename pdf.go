@@ -127,14 +127,6 @@ func writeRegulatoryDetails(pdf *gopdf.GoPdf, invoice Invoice) {
 	_ = pdf.SetFont("Inter", "", 9.5)
 	pdf.SetTextColor(55, 55, 55)
 
-	if invoice.SellerTaxID != "" {
-		_ = pdf.Cell(nil, "Seller Tax ID: "+invoice.SellerTaxID)
-		pdf.Br(14)
-	}
-	if invoice.BuyerTaxID != "" {
-		_ = pdf.Cell(nil, "Buyer Tax ID: "+invoice.BuyerTaxID)
-		pdf.Br(14)
-	}
 	if invoice.SellerVATID != "" {
 		_ = pdf.Cell(nil, "Seller VAT ID: "+invoice.SellerVATID)
 		pdf.Br(14)

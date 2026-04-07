@@ -10,7 +10,6 @@ Generate invoices from the command line.
 invoice generate --from "Dream, Inc." --to "Imagine, Inc." \
     --item "Rubber Duck" --quantity 2 --rate 25 \
     --vat 0.23 --discount 0.15 \
-    --seller-tax-id "501234567" --buyer-tax-id "509876543" \
     --seller-vat-id "PT501234567" --buyer-vat-id "PT509876543" \
     --country-code "PT" \
     --supply-date "Apr 07, 2026" \
@@ -59,9 +58,8 @@ Or, save repeated information with JSON / YAML:
     "logo": "/path/to/image.png",
     "from": "Dream, Inc.",
     "to": "Imagine, Inc.",
+    "currency": "EUR",
     "tax": 0.23,
-    "seller_tax_id": "501234567",
-    "buyer_tax_id": "509876543",
     "seller_vat_id": "PT501234567",
     "buyer_vat_id": "PT509876543",
     "country_code": "PT",
@@ -85,8 +83,6 @@ invoice generate --import path/to/data.json \
 
 For Portuguese and EU compliance workflows, include these flags/fields:
 
-* `--seller-tax-id` / `seller_tax_id`
-* `--buyer-tax-id` / `buyer_tax_id`
 * `--seller-vat-id` / `seller_vat_id`
 * `--buyer-vat-id` / `buyer_vat_id`
 * `--supply-date` / `supply_date`
@@ -99,6 +95,22 @@ For Portuguese and EU compliance workflows, include these flags/fields:
 When `country_code` is `PT`, the CLI now validates key Portuguese invoice requirements:
 required supplier/recipient details and VAT IDs, VAT exemption reason + legal reference
 when VAT is zero, and issuance within 5 working days of `supply_date`.
+
+### Electronic Invoicing in Portugal (reference notes)
+
+* **Authorities and model**: Portugal uses a centralized public e-invoicing model coordinated by **eSPAP** for interoperability in exchanges with public administrations. Tax oversight is handled by the **Autoridade Tributária e Aduaneira (AT)**.
+* **Mandatory scope**:
+  * **B2G** (supplier to public administration): mandatory electronic invoicing.
+  * **B2B** (private company to private company): optional adoption.
+* **Accepted B2G formats**:
+  * **UBL 2.1 CIUS-PT**
+  * **CEFACT CIUS-PT**
+  These are XML-based and adapted to Portuguese national interoperability requirements.
+* **Electronic signature**: mandatory for invoices sent to public administrations, using a qualified digital certificate from a recognized certification authority under **eIDAS (Regulation (EU) No. 910/2014)**.
+* **Archiving**: issuer and recipient must retain electronic invoices for at least **10 years** while preserving integrity, authenticity, and accessibility.
+* **Administrative onboarding**:
+  * Suppliers using entities integrated with eSPAP must register and pass interoperability tests.
+  * For public entities outside eSPAP integration, suppliers must connect to each entity's specific portal requirements.
 
 ### Custom Templates
 
