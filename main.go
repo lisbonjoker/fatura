@@ -29,6 +29,13 @@ type Invoice struct {
 	Date string `json:"date" yaml:"date"`
 	Due  string `json:"due" yaml:"due"`
 
+	SellerTaxID string `json:"seller_tax_id" yaml:"seller_tax_id"`
+	BuyerTaxID  string `json:"buyer_tax_id" yaml:"buyer_tax_id"`
+	SellerVATID string `json:"seller_vat_id" yaml:"seller_vat_id"`
+	BuyerVATID  string `json:"buyer_vat_id" yaml:"buyer_vat_id"`
+	SupplyDate  string `json:"supply_date" yaml:"supply_date"`
+	CountryCode string `json:"country_code" yaml:"country_code"`
+
 	Items      []string  `json:"items" yaml:"items"`
 	Quantities []int     `json:"quantities" yaml:"quantities"`
 	Rates      []float64 `json:"rates" yaml:"rates"`
@@ -37,23 +44,27 @@ type Invoice struct {
 	Discount float64 `json:"discount" yaml:"discount"`
 	Currency string  `json:"currency" yaml:"currency"`
 
-	Note string `json:"note" yaml:"note"`
+	ExemptionReason string `json:"exemption_reason" yaml:"exemption_reason"`
+	LegalReference  string `json:"legal_reference" yaml:"legal_reference"`
+	Note            string `json:"note" yaml:"note"`
 }
 
 func DefaultInvoice() Invoice {
 	return Invoice{
-		Id:         time.Now().Format("20060102"),
-		Title:      "INVOICE",
-		Rates:      []float64{25},
-		Quantities: []int{2},
-		Items:      []string{"Paper Cranes"},
-		From:       "Project Folded, Inc.",
-		To:         "Untitled Corporation, Inc.",
-		Date:       time.Now().Format("Jan 02, 2006"),
-		Due:        time.Now().AddDate(0, 0, 14).Format("Jan 02, 2006"),
-		Tax:        0,
-		Discount:   0,
-		Currency:   "USD",
+		Id:          time.Now().Format("20060102"),
+		Title:       "INVOICE",
+		Rates:       []float64{25},
+		Quantities:  []int{2},
+		Items:       []string{"Paper Cranes"},
+		From:        "Project Folded, Inc.",
+		To:          "Untitled Corporation, Inc.",
+		Date:        time.Now().Format("Jan 02, 2006"),
+		Due:         time.Now().AddDate(0, 0, 14).Format("Jan 02, 2006"),
+		SupplyDate:  time.Now().Format("Jan 02, 2006"),
+		CountryCode: "PT",
+		Tax:         0,
+		Discount:    0,
+		Currency:    "USD",
 	}
 }
 
@@ -80,11 +91,21 @@ func init() {
 	generateCmd.Flags().StringVarP(&file.To, "to", "t", defaultInvoice.To, "Recipient company")
 	generateCmd.Flags().StringVar(&file.Date, "date", defaultInvoice.Date, "Date")
 	generateCmd.Flags().StringVar(&file.Due, "due", defaultInvoice.Due, "Payment due date")
+	generateCmd.Flags().StringVar(&file.SupplyDate, "supply-date", defaultInvoice.SupplyDate, "Supply date")
+	generateCmd.Flags().StringVar(&file.CountryCode, "country-code", defaultInvoice.CountryCode, "Invoice country code (e.g. PT)")
+	generateCmd.Flags().StringVar(&file.SellerTaxID, "seller-tax-id", "", "Seller tax ID (e.g. Portuguese NIF)")
+	generateCmd.Flags().StringVar(&file.BuyerTaxID, "buyer-tax-id", "", "Buyer tax ID (e.g. Portuguese NIF)")
+	generateCmd.Flags().StringVar(&file.SellerVATID, "seller-vat-id", "", "Seller EU VAT ID (e.g. PT123456789)")
+	generateCmd.Flags().StringVar(&file.BuyerVATID, "buyer-vat-id", "", "Buyer EU VAT ID")
 
 	generateCmd.Flags().Float64Var(&file.Tax, "tax", defaultInvoice.Tax, "Tax")
+	generateCmd.Flags().Float64Var(&file.Tax, "vat", defaultInvoice.Tax, "VAT rate (alias of --tax)")
 	generateCmd.Flags().Float64VarP(&file.Discount, "discount", "d", defaultInvoice.Discount, "Discount")
 	generateCmd.Flags().StringVarP(&file.Currency, "currency", "c", defaultInvoice.Currency, "Currency")
 
+	generateCmd.Flags().StringVar(&file.ExemptionReason, "exemption-reason", "", "VAT exemption legal reason/code")
+	generateCmd.Flags().StringVar(&file.LegalReference, "legal-reference", "", "VAT legal reference (article/code)")
+	generateCmd.Flags().StringVar(&ptExemptionPreset, "pt-exemption", "", "PT VAT exemption preset: e_learning|gambling|insurance_financial")
 	generateCmd.Flags().StringVarP(&file.Note, "note", "n", "", "Note")
 	generateCmd.Flags().StringVarP(&output, "output", "o", "invoice.pdf", "Output file (.pdf)")
 
@@ -109,6 +130,10 @@ var generateCmd = &cobra.Command{
 				return err
 			}
 		}
+		applyPortugueseExemptionPreset(&file)
+		if err := validateInvoiceCompliance(file); err != nil {
+			return err
+		}
 
 		pdf := gopdf.GoPdf{}
 		pdf.Start(gopdf.Config{
@@ -129,6 +154,7 @@ var generateCmd = &cobra.Command{
 		writeLogo(&pdf, file.Logo, file.From)
 		writeTitle(&pdf, file.Title, file.Id, file.Date)
 		writeBillTo(&pdf, file.To)
+		writeRegulatoryDetails(&pdf, file)
 		writeHeaderRow(&pdf)
 		subtotal := 0.0
 		for i := range file.Items {
@@ -145,10 +171,13 @@ var generateCmd = &cobra.Command{
 			writeRow(&pdf, file.Items[i], q, r)
 			subtotal += float64(q) * r
 		}
+		if file.ExemptionReason != "" {
+			writeExemptionReason(&pdf, file.ExemptionReason, file.LegalReference)
+		}
 		if file.Note != "" {
 			writeNotes(&pdf, file.Note)
 		}
-		writeTotals(&pdf, subtotal, subtotal*file.Tax, subtotal*file.Discount)
+		writeTotals(&pdf, subtotal, subtotal*file.Tax, subtotal*file.Discount, file.Tax)
 		if file.Due != "" {
 			writeDueDate(&pdf, file.Due)
 		}

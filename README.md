@@ -9,7 +9,11 @@ Generate invoices from the command line.
 ```bash
 invoice generate --from "Dream, Inc." --to "Imagine, Inc." \
     --item "Rubber Duck" --quantity 2 --rate 25 \
-    --tax 0.13 --discount 0.15 \
+    --vat 0.23 --discount 0.15 \
+    --seller-tax-id "501234567" --buyer-tax-id "509876543" \
+    --seller-vat-id "PT501234567" --buyer-vat-id "PT509876543" \
+    --country-code "PT" \
+    --supply-date "Apr 07, 2026" \
     --note "For debugging purposes."
 ```
 
@@ -55,7 +59,15 @@ Or, save repeated information with JSON / YAML:
     "logo": "/path/to/image.png",
     "from": "Dream, Inc.",
     "to": "Imagine, Inc.",
-    "tax": 0.13,
+    "tax": 0.23,
+    "seller_tax_id": "501234567",
+    "buyer_tax_id": "509876543",
+    "seller_vat_id": "PT501234567",
+    "buyer_vat_id": "PT509876543",
+    "country_code": "PT",
+    "supply_date": "Apr 07, 2026",
+    "exemption_reason": "",
+    "legal_reference": "",
     "items": ["Yellow Rubber Duck", "Special Edition Plaid Rubber Duck"],
     "quantities": [5, 1],
     "rates": [25, 25],
@@ -68,6 +80,25 @@ Generate new invoice by importing the configuration file:
 invoice generate --import path/to/data.json \
     --output duck-invoice.pdf
 ```
+
+### Portuguese / EU VAT fields
+
+For Portuguese and EU compliance workflows, include these flags/fields:
+
+* `--seller-tax-id` / `seller_tax_id`
+* `--buyer-tax-id` / `buyer_tax_id`
+* `--seller-vat-id` / `seller_vat_id`
+* `--buyer-vat-id` / `buyer_vat_id`
+* `--supply-date` / `supply_date`
+* `--country-code` / `country_code`
+* `--vat` (alias for `--tax`)
+* `--exemption-reason` / `exemption_reason` when VAT is exempt
+* `--legal-reference` / `legal_reference`
+* `--pt-exemption` shortcut values: `e_learning`, `gambling`, `insurance_financial`
+
+When `country_code` is `PT`, the CLI now validates key Portuguese invoice requirements:
+required supplier/recipient details and VAT IDs, VAT exemption reason + legal reference
+when VAT is zero, and issuance within 5 working days of `supply_date`.
 
 ### Custom Templates
 
