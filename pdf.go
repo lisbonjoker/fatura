@@ -60,11 +60,12 @@ func writeTitle(pdf *gopdf.GoPdf, title, id, date string) {
 	pdf.Br(36)
 	_ = pdf.SetFont("Inter", "", 12)
 	pdf.SetTextColor(100, 100, 100)
-	_ = pdf.Cell(nil, "#")
+	_ = pdf.Cell(nil, "Invoice No: ")
 	_ = pdf.Cell(nil, id)
 	pdf.SetTextColor(150, 150, 150)
 	_ = pdf.Cell(nil, "  ·  ")
 	pdf.SetTextColor(100, 100, 100)
+	_ = pdf.Cell(nil, "Issue Date: ")
 	_ = pdf.Cell(nil, date)
 	pdf.Br(48)
 }
@@ -118,6 +119,37 @@ func writeHeaderRow(pdf *gopdf.GoPdf) {
 	pdf.Br(24)
 }
 
+func writeRegulatoryDetails(pdf *gopdf.GoPdf, invoice Invoice) {
+	pdf.SetTextColor(75, 75, 75)
+	_ = pdf.SetFont("Inter", "", 9)
+	_ = pdf.Cell(nil, "REGULATORY DETAILS")
+	pdf.Br(16)
+	_ = pdf.SetFont("Inter", "", 9.5)
+	pdf.SetTextColor(55, 55, 55)
+
+	if invoice.SellerTaxID != "" {
+		_ = pdf.Cell(nil, "Seller Tax ID: "+invoice.SellerTaxID)
+		pdf.Br(14)
+	}
+	if invoice.BuyerTaxID != "" {
+		_ = pdf.Cell(nil, "Buyer Tax ID: "+invoice.BuyerTaxID)
+		pdf.Br(14)
+	}
+	if invoice.SellerVATID != "" {
+		_ = pdf.Cell(nil, "Seller VAT ID: "+invoice.SellerVATID)
+		pdf.Br(14)
+	}
+	if invoice.BuyerVATID != "" {
+		_ = pdf.Cell(nil, "Buyer VAT ID: "+invoice.BuyerVATID)
+		pdf.Br(14)
+	}
+	if invoice.SupplyDate != "" {
+		_ = pdf.Cell(nil, "Supply Date: "+invoice.SupplyDate)
+		pdf.Br(14)
+	}
+	pdf.Br(20)
+}
+
 func writeNotes(pdf *gopdf.GoPdf, notes string) {
 	pdf.SetY(600)
 
@@ -137,6 +169,24 @@ func writeNotes(pdf *gopdf.GoPdf, notes string) {
 	}
 
 	pdf.Br(48)
+}
+
+func writeExemptionReason(pdf *gopdf.GoPdf, reason, legalReference string) {
+	pdf.SetY(690)
+	_ = pdf.SetFont("Inter", "", 9)
+	pdf.SetTextColor(55, 55, 55)
+	_ = pdf.Cell(nil, "VAT EXEMPTION REASON")
+	pdf.Br(18)
+	_ = pdf.SetFont("Inter", "", 9)
+	pdf.SetTextColor(0, 0, 0)
+	_ = pdf.Cell(nil, reason)
+	pdf.Br(14)
+	if legalReference != "" {
+		_ = pdf.SetFont("Inter", "", 8.5)
+		pdf.SetTextColor(75, 75, 75)
+		_ = pdf.Cell(nil, "Legal Ref: "+legalReference)
+		pdf.Br(14)
+	}
 }
 func writeFooter(pdf *gopdf.GoPdf, id string) {
 	pdf.SetY(800)
@@ -166,12 +216,12 @@ func writeRow(pdf *gopdf.GoPdf, item string, quantity int, rate float64) {
 	pdf.Br(24)
 }
 
-func writeTotals(pdf *gopdf.GoPdf, subtotal float64, tax float64, discount float64) {
+func writeTotals(pdf *gopdf.GoPdf, subtotal float64, tax float64, discount float64, taxRate float64) {
 	pdf.SetY(600)
 
 	writeTotal(pdf, subtotalLabel, subtotal)
 	if tax > 0 {
-		writeTotal(pdf, taxLabel, tax)
+		writeTotal(pdf, fmt.Sprintf("%s (%.2f%%)", taxLabel, taxRate*100), tax)
 	}
 	if discount > 0 {
 		writeTotal(pdf, discountLabel, discount)
