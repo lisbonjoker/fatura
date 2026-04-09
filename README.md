@@ -14,7 +14,6 @@ invoice generate --from "Dream, Inc." --to "Imagine, Inc." \
     --payment-terms "NET 15" \
     --seller-vat-id "PT501234567" --buyer-vat-id "PT509876543" \
     --country-code "PT" \
-    --supply-date "Apr 07, 2026" \
     --note "For debugging purposes."
 ```
 
@@ -68,7 +67,6 @@ Or, save repeated information with JSON / YAML:
     "seller_vat_id": "PT501234567",
     "buyer_vat_id": "PT509876543",
     "country_code": "PT",
-    "supply_date": "Apr 07, 2026",
     "exemption_reason": "",
     "legal_reference": "",
     "items": ["Yellow Rubber Duck", "Special Edition Plaid Rubber Duck"],
@@ -95,7 +93,6 @@ For Portuguese and EU compliance workflows, include these flags/fields:
 
 * `--seller-vat-id` / `seller_vat_id`
 * `--buyer-vat-id` / `buyer_vat_id`
-* `--supply-date` / `supply_date`
 * `--country-code` / `country_code`
 * `--vat` (alias for `--tax`)
 * `--exemption-reason` / `exemption_reason` when VAT is exempt
@@ -104,7 +101,7 @@ For Portuguese and EU compliance workflows, include these flags/fields:
 
 When `country_code` is `PT`, the CLI now validates key Portuguese invoice requirements:
 required supplier/recipient details and VAT IDs, VAT exemption reason + legal reference
-when VAT is zero, and issuance within 5 working days of `supply_date`.
+when VAT is zero.
 
 ### Electronic Invoicing in Portugal (reference notes)
 
