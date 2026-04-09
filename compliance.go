@@ -57,9 +57,6 @@ func validateInvoiceCompliance(invoice Invoice) error {
 	if strings.TrimSpace(invoice.Date) == "" {
 		missing = append(missing, "issue date (--date)")
 	}
-	if strings.TrimSpace(invoice.SupplyDate) == "" {
-		missing = append(missing, "supply date (--supply-date)")
-	}
 	if strings.TrimSpace(invoice.From) == "" {
 		missing = append(missing, "supplier name/address (--from)")
 	}
@@ -85,31 +82,8 @@ func validateInvoiceCompliance(invoice Invoice) error {
 		return fmt.Errorf("VAT is 0 for PT invoice; provide --legal-reference or --pt-exemption")
 	}
 
-	issueDate, err := time.Parse("Jan 02, 2006", invoice.Date)
-	if err != nil {
+	if _, err := time.Parse("Jan 02, 2006", invoice.Date); err != nil {
 		return fmt.Errorf("invalid --date format: use \"Jan 02, 2006\"")
 	}
-	supplyDate, err := time.Parse("Jan 02, 2006", invoice.SupplyDate)
-	if err != nil {
-		return fmt.Errorf("invalid --supply-date format: use \"Jan 02, 2006\"")
-	}
-
-	if businessDaysBetween(supplyDate, issueDate) > 5 {
-		return fmt.Errorf("PT invoice must be issued within 5 working days of supply date")
-	}
-
 	return nil
-}
-
-func businessDaysBetween(start, end time.Time) int {
-	if end.Before(start) {
-		start, end = end, start
-	}
-	days := 0
-	for d := start; d.Before(end); d = d.AddDate(0, 0, 1) {
-		if d.Weekday() != time.Saturday && d.Weekday() != time.Sunday {
-			days++
-		}
-	}
-	return days
 }

@@ -168,10 +168,6 @@ func writeRegulatoryDetails(pdf *gopdf.GoPdf, invoice Invoice) {
 		_ = pdf.Cell(nil, "Buyer VAT ID: "+invoice.BuyerVATID)
 		pdf.Br(14)
 	}
-	if invoice.SupplyDate != "" {
-		_ = pdf.Cell(nil, "Supply Date: "+invoice.SupplyDate)
-		pdf.Br(14)
-	}
 	pdf.Br(20)
 }
 

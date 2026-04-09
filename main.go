@@ -33,7 +33,6 @@ type Invoice struct {
 
 	SellerVATID string `json:"seller_vat_id" yaml:"seller_vat_id"`
 	BuyerVATID  string `json:"buyer_vat_id" yaml:"buyer_vat_id"`
-	SupplyDate  string `json:"supply_date" yaml:"supply_date"`
 	CountryCode string `json:"country_code" yaml:"country_code"`
 
 	Items          []string  `json:"items" yaml:"items"`
@@ -72,7 +71,6 @@ func DefaultInvoice() Invoice {
 		To:          "Untitled Corporation, Inc.",
 		Date:        time.Now().Format("Jan 02, 2006"),
 		Due:         time.Now().AddDate(0, 0, 14).Format("Jan 02, 2006"),
-		SupplyDate:  time.Now().Format("Jan 02, 2006"),
 		CountryCode: "PT",
 		Tax:         0,
 		Discount:    0,
@@ -112,7 +110,6 @@ func init() {
 	generateCmd.Flags().StringSliceVar(&toLines, "to-line", nil, "Recipient company line (repeatable)")
 	generateCmd.Flags().StringVar(&file.Date, "date", defaultInvoice.Date, "Date")
 	generateCmd.Flags().StringVar(&file.Due, "due", defaultInvoice.Due, "Payment due date")
-	generateCmd.Flags().StringVar(&file.SupplyDate, "supply-date", defaultInvoice.SupplyDate, "Supply date")
 	generateCmd.Flags().StringVar(&file.CountryCode, "country-code", defaultInvoice.CountryCode, "Invoice country code (e.g. PT)")
 	generateCmd.Flags().StringVar(&file.SellerVATID, "seller-vat-id", "", "Seller EU VAT ID (e.g. PT123456789)")
 	generateCmd.Flags().StringVar(&file.BuyerVATID, "buyer-vat-id", "", "Buyer EU VAT ID")
