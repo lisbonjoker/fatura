@@ -127,7 +127,7 @@ func writeBillTo(pdf *gopdf.GoPdf, to string) {
 }
 
 func writeRegulatoryDetails(pdf *gopdf.GoPdf, invoice Invoice) {
-	if invoice.SellerVATID == "" && invoice.BuyerVATID == "" {
+	if invoice.SellerVATID == "" && invoice.BuyerVATID == "" && invoice.Reference == "" {
 		return
 	}
 	pdf.SetTextColor(75, 75, 75)
@@ -143,6 +143,10 @@ func writeRegulatoryDetails(pdf *gopdf.GoPdf, invoice Invoice) {
 	}
 	if invoice.BuyerVATID != "" {
 		_ = pdf.Cell(nil, "NIF Cliente: "+invoice.BuyerVATID)
+		pdf.Br(14)
+	}
+	if invoice.Reference != "" {
+		_ = pdf.Cell(nil, "Referência: "+invoice.Reference)
 		pdf.Br(14)
 	}
 	pdf.Br(20)
@@ -195,16 +199,28 @@ func writeNotes(pdf *gopdf.GoPdf, notes string) {
 	pdf.Br(48)
 }
 
-func writeExemptionReason(pdf *gopdf.GoPdf, reason, legalReference string) {
+func writeExemptionReason(pdf *gopdf.GoPdf, code, reason, legalReference string) {
 	pdf.SetY(690)
 	_ = pdf.SetFont("Inter", "", 9)
 	pdf.SetTextColor(55, 55, 55)
 	_ = pdf.Cell(nil, "MOTIVO DE ISENÇÃO DE IVA")
 	pdf.Br(18)
-	_ = pdf.SetFont("Inter", "", 9)
-	pdf.SetTextColor(0, 0, 0)
-	_ = pdf.Cell(nil, reason)
-	pdf.Br(14)
+	if code != "" {
+		_ = pdf.SetFont("Inter-Bold", "", 9.5)
+		pdf.SetTextColor(0, 0, 0)
+		_ = pdf.Cell(nil, code)
+		if reason != "" {
+			_ = pdf.SetFont("Inter", "", 9.5)
+			pdf.SetTextColor(55, 55, 55)
+			_ = pdf.Cell(nil, "  —  "+reason)
+		}
+		pdf.Br(14)
+	} else if reason != "" {
+		_ = pdf.SetFont("Inter", "", 9)
+		pdf.SetTextColor(0, 0, 0)
+		_ = pdf.Cell(nil, reason)
+		pdf.Br(14)
+	}
 	if legalReference != "" {
 		_ = pdf.SetFont("Inter", "", 8.5)
 		pdf.SetTextColor(75, 75, 75)

@@ -53,8 +53,10 @@ type Invoice struct {
 	Discount float64 `json:"discount" yaml:"discount"`
 	Currency string  `json:"currency" yaml:"currency"`
 
+	ExemptionCode   string `json:"exemption_code"   yaml:"exemption_code"`
 	ExemptionReason string `json:"exemption_reason" yaml:"exemption_reason"`
 	LegalReference  string `json:"legal_reference"  yaml:"legal_reference"`
+	Reference       string `json:"reference"        yaml:"reference"`
 	PaymentTerms    string `json:"payment_terms"    yaml:"payment_terms"`
 	Note            string `json:"note"             yaml:"note"`
 }
@@ -127,9 +129,10 @@ func init() {
 	generateCmd.Flags().Float64VarP(&invoice.Discount, "discount", "d", d.Discount, "Desconto")
 	generateCmd.Flags().StringVarP(&invoice.Currency, "currency", "c", d.Currency, "Moeda")
 
-	generateCmd.Flags().StringVar(&invoice.ExemptionReason, "exemption-reason", "", "Motivo de isenção de IVA")
-	generateCmd.Flags().StringVar(&invoice.LegalReference, "legal-reference", "", "Referência legal da isenção")
-	generateCmd.Flags().StringVar(&ptExemptionPreset, "pt-exemption", "", "Isenção PT predefinida: e_learning|gambling|insurance_financial")
+	generateCmd.Flags().StringVar(&exemptionCodeFlag, "exemption", "", "Código de isenção AT (ex: M07, M01, M99). Ver lista completa em --help")
+	generateCmd.Flags().StringVar(&invoice.ExemptionReason, "exemption-reason", "", "Motivo de isenção personalizado (substitui o do código AT)")
+	generateCmd.Flags().StringVar(&invoice.LegalReference, "legal-reference", "", "Referência legal personalizada (substitui a do código AT)")
+	generateCmd.Flags().StringVar(&invoice.Reference, "reference", "", "Referência de encomenda/PO (ex: PO-2026-001)")
 	generateCmd.Flags().StringVar(&invoice.PaymentTerms, "payment-terms", "", "Condições de pagamento (ex: 30 dias)")
 	generateCmd.Flags().StringVar(&invoice.ItemColumns, "item-columns", d.ItemColumns, "Colunas dos artigos: date,time,category,qty,rate,amount")
 	generateCmd.Flags().StringVarP(&invoice.Note, "note", "n", "", "Observações")
@@ -152,7 +155,7 @@ var generateCmd = &cobra.Command{
 				return err
 			}
 		}
-		applyPortugueseExemptionPreset(&invoice)
+		applyExemptionCode(&invoice)
 		applyAddressLines(cmd, &invoice)
 		if err := applyQuantities(cmd, &invoice); err != nil {
 			return err
@@ -196,8 +199,8 @@ var generateCmd = &cobra.Command{
 			totalQty += q
 		}
 
-		if invoice.ExemptionReason != "" {
-			writeExemptionReason(&pdf, invoice.ExemptionReason, invoice.LegalReference)
+		if invoice.ExemptionCode != "" || invoice.ExemptionReason != "" {
+			writeExemptionReason(&pdf, invoice.ExemptionCode, invoice.ExemptionReason, invoice.LegalReference)
 		}
 		if invoice.Note != "" {
 			writeNotes(&pdf, invoice.Note)
