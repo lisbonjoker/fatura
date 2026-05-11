@@ -366,10 +366,8 @@ Exemplos:
 			writeDraftWatermark(&pdf)
 		}
 
-		writeLogo(&pdf, invoice.Logo, invoice.From)
-		writeTitle(&pdf, invoice.Title, invoice.Id, invoice.Date, atcud)
-		writeBillTo(&pdf, invoice.To)
-		writeRegulatoryDetails(&pdf, invoice)
+		writeHeader(&pdf, invoice, atcud)
+		writeInfoStrip(&pdf, invoice)
 		cols := computeColPositions(invoice)
 		writeHeaderRow(&pdf, invoice, cols)
 
