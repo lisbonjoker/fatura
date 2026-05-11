@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
@@ -14,60 +13,50 @@ import (
 func importData(path string, structure *Invoice, flags *pflag.FlagSet) error {
 	fileText, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("unable to read file")
+		return fmt.Errorf("unable to read file: %w", err)
 	}
-
-	var b []byte
-	var byteBuffer [][]byte
-	flags.Visit(func(f *pflag.Flag) {
-		if f.Value.Type() != "string" {
-			b = []byte(fmt.Sprintf(`{"%s":%s}`, f.Name, f.Value))
-		} else {
-			b = []byte(fmt.Sprintf(`{"%s":"%s"}`, f.Name, f.Value))
-		}
-		byteBuffer = append(byteBuffer, b)
-	})
 
 	if strings.HasSuffix(path, ".json") {
-		err = importJson(fileText, structure)
+		err = importJSON(fileText, structure)
 	} else if strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml") {
-		err = importYaml(fileText, structure)
-
+		err = importYAML(fileText, structure)
 	} else {
-		return fmt.Errorf("unsupported file type")
+		return fmt.Errorf("unsupported file type: %s", path)
 	}
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	for _, bytes := range byteBuffer {
-		err = importJson(bytes, structure)
+	// CLI flags override imported values; flag names use hyphens but JSON tags use underscores.
+	flags.Visit(func(f *pflag.Flag) {
 		if err != nil {
-			log.Fatal(err)
+			return
 		}
-	}
-
+		key := strings.ReplaceAll(f.Name, "-", "_")
+		var b []byte
+		if f.Value.Type() != "string" {
+			b = []byte(fmt.Sprintf(`{"%s":%s}`, key, f.Value))
+		} else {
+			b = []byte(fmt.Sprintf(`{"%s":"%s"}`, key, f.Value))
+		}
+		err = importJSON(b, structure)
+	})
 	return err
 }
 
-func importJson(text []byte, structure *Invoice) error {
+func importJSON(text []byte, structure *Invoice) error {
 	if !json.Valid(text) {
-		return fmt.Errorf("json file not correctly formatted")
+		return fmt.Errorf("invalid JSON")
 	}
-
-	err := json.Unmarshal(text, structure)
-	if err != nil {
-		return fmt.Errorf("json file not correctly formatted")
+	if err := json.Unmarshal(text, structure); err != nil {
+		return fmt.Errorf("malformed JSON: %w", err)
 	}
-
 	return nil
 }
 
-func importYaml(text []byte, structure *Invoice) error {
-	err := yaml.Unmarshal(text, structure)
-	if err != nil {
-		return fmt.Errorf("yaml file not correctly formatted")
+func importYAML(text []byte, structure *Invoice) error {
+	if err := yaml.Unmarshal(text, structure); err != nil {
+		return fmt.Errorf("malformed YAML: %w", err)
 	}
-
 	return nil
 }

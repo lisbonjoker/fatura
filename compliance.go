@@ -15,24 +15,23 @@ type exemptionPreset struct {
 
 var portugueseExemptions = map[string]exemptionPreset{
 	"e_learning": {
-		Reason:         "Education services by recognised establishments",
-		LegalReference: "Portuguese VAT Code, Article 9(9)",
+		Reason:         "Serviços de educação e formação profissional por entidades reconhecidas",
+		LegalReference: "Código do IVA, Artigo 9.º, n.º 9",
 	},
 	"gambling": {
-		Reason:         "Authorised gambling activities",
-		LegalReference: "Portuguese VAT Code, Article 9(31) and Decree-Law 66/2015",
+		Reason:         "Atividades de jogos e apostas autorizadas",
+		LegalReference: "Código do IVA, Artigo 9.º, n.º 31 e DL 66/2015",
 	},
 	"insurance_financial": {
-		Reason:         "Insurance or financial services VAT exemption",
-		LegalReference: "Portuguese VAT Code, Articles 9(27) and 9(28)",
+		Reason:         "Operações de seguro ou serviços financeiros isentos de IVA",
+		LegalReference: "Código do IVA, Artigos 9.º, n.ºs 27 e 28",
 	},
 }
 
 func applyPortugueseExemptionPreset(invoice *Invoice) {
-	if strings.ToUpper(invoice.CountryCode) != "PT" || ptExemptionPreset == "" {
+	if ptExemptionPreset == "" {
 		return
 	}
-
 	preset, ok := portugueseExemptions[ptExemptionPreset]
 	if !ok {
 		return
@@ -46,44 +45,38 @@ func applyPortugueseExemptionPreset(invoice *Invoice) {
 }
 
 func validateInvoiceCompliance(invoice Invoice) error {
-	if strings.ToUpper(invoice.CountryCode) != "PT" {
-		return nil
-	}
-
-	missing := make([]string, 0)
+	var missing []string
 	if strings.TrimSpace(invoice.Id) == "" {
-		missing = append(missing, "sequential invoice number (--id)")
+		missing = append(missing, "número sequencial de fatura (--id)")
 	}
 	if strings.TrimSpace(invoice.Date) == "" {
-		missing = append(missing, "issue date (--date)")
+		missing = append(missing, "data de emissão (--date)")
 	}
 	if strings.TrimSpace(invoice.From) == "" {
-		missing = append(missing, "supplier name/address (--from)")
+		missing = append(missing, "nome/morada do fornecedor (--from)")
 	}
 	if strings.TrimSpace(invoice.To) == "" {
-		missing = append(missing, "recipient name/address (--to)")
+		missing = append(missing, "nome/morada do cliente (--to)")
 	}
 	if strings.TrimSpace(invoice.SellerVATID) == "" {
-		missing = append(missing, "supplier VAT ID (--seller-vat-id)")
+		missing = append(missing, "NIF do fornecedor (--seller-vat-id)")
 	}
 	if strings.TrimSpace(invoice.BuyerVATID) == "" {
-		missing = append(missing, "recipient VAT ID (--buyer-vat-id)")
+		missing = append(missing, "NIF do cliente (--buyer-vat-id)")
 	}
-
 	if len(missing) > 0 {
-		return fmt.Errorf("missing PT invoice fields: %s", strings.Join(missing, ", "))
+		return fmt.Errorf("campos obrigatórios em falta: %s", strings.Join(missing, ", "))
 	}
 
 	if invoice.Tax == 0 && strings.TrimSpace(invoice.ExemptionReason) == "" {
-		return fmt.Errorf("VAT is 0 for PT invoice; provide --exemption-reason or --pt-exemption")
+		return fmt.Errorf("IVA é 0; indique --exemption-reason ou --pt-exemption")
 	}
-
 	if invoice.Tax == 0 && strings.TrimSpace(invoice.LegalReference) == "" {
-		return fmt.Errorf("VAT is 0 for PT invoice; provide --legal-reference or --pt-exemption")
+		return fmt.Errorf("IVA é 0; indique --legal-reference ou --pt-exemption")
 	}
 
 	if _, err := time.Parse("Jan 02, 2006", invoice.Date); err != nil {
-		return fmt.Errorf("invalid --date format: use \"Jan 02, 2006\"")
+		return fmt.Errorf("formato de data inválido: use \"Jan 02, 2006\"")
 	}
 	return nil
 }
