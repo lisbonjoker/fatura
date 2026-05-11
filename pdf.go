@@ -201,6 +201,29 @@ func writeHeaderRow(pdf *gopdf.GoPdf, invoice Invoice) {
 	pdf.Br(24)
 }
 
+// notesMaxWidth is the column width available for notes before the totals section begins.
+const notesMaxWidth = 285.0
+
+func wrapText(pdf *gopdf.GoPdf, text string, maxWidth float64) []string {
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return []string{""}
+	}
+	var lines []string
+	current := words[0]
+	for _, word := range words[1:] {
+		candidate := current + " " + word
+		w, _ := pdf.MeasureTextWidth(candidate)
+		if w > maxWidth {
+			lines = append(lines, current)
+			current = word
+		} else {
+			current = candidate
+		}
+	}
+	return append(lines, current)
+}
+
 func writeNotes(pdf *gopdf.GoPdf, notes string) {
 	pdf.SetY(600)
 	_ = pdf.SetFont("Inter", "", 9)
@@ -211,8 +234,10 @@ func writeNotes(pdf *gopdf.GoPdf, notes string) {
 	pdf.SetTextColor(0, 0, 0)
 
 	for _, line := range strings.Split(strings.ReplaceAll(notes, `\n`, "\n"), "\n") {
-		_ = pdf.Cell(nil, line)
-		pdf.Br(15)
+		for _, wrapped := range wrapText(pdf, line, notesMaxWidth) {
+			_ = pdf.Cell(nil, wrapped)
+			pdf.Br(15)
+		}
 	}
 	pdf.Br(48)
 }
