@@ -71,14 +71,14 @@ type Invoice struct {
 	Discount float64 `json:"discount" yaml:"discount"`
 	Currency string  `json:"currency" yaml:"currency"`
 
-	ExemptionCode   string `json:"exemption_code"   yaml:"exemption_code"`
-	ExemptionReason string `json:"exemption_reason" yaml:"exemption_reason"`
-	LegalReference  string `json:"legal_reference"  yaml:"legal_reference"`
-	Reference       string `json:"reference"        yaml:"reference"`
-	ATCUDCode       string `json:"atcud_code"       yaml:"atcud_code"`
-	PaymentTerms    string `json:"payment_terms"    yaml:"payment_terms"`
+	ExemptionCode   string  `json:"exemption_code"   yaml:"exemption_code"`
+	ExemptionReason string  `json:"exemption_reason" yaml:"exemption_reason"`
+	LegalReference  string  `json:"legal_reference"  yaml:"legal_reference"`
+	Reference       string  `json:"reference"        yaml:"reference"`
+	ATCUDCode       string  `json:"atcud_code"       yaml:"atcud_code"`
+	PaymentTerms    string  `json:"payment_terms"    yaml:"payment_terms"`
 	Withholding     float64 `json:"withholding"    yaml:"withholding"`
-	Note            string `json:"note"             yaml:"note"`
+	Note            string  `json:"note"             yaml:"note"`
 }
 
 const idChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
