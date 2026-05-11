@@ -1,4 +1,4 @@
-module github.com/lisbonjoker/invoice
+module github.com/lisbonjoker/fatura
 
 go 1.20
 

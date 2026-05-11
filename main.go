@@ -230,9 +230,9 @@ Utilize "{{.CommandPath}} [comando] --help" para mais informação sobre um coma
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "invoice",
+	Use:   "fatura",
 	Short: "Gerador de faturas portuguesas em linha de comandos.",
-	Long: `invoice — Gerador de faturas portuguesas em linha de comandos.
+	Long: `fatura — Gerador de faturas portuguesas em linha de comandos.
 
 Gera PDFs de faturas conformes com os requisitos da Autoridade Tributária (AT),
 incluindo numeração sequencial automática, isenções de IVA (M01–M99), ATCUD,
@@ -246,15 +246,15 @@ Comandos disponíveis:
   version    Mostrar a versão instalada
 
 Exemplos:
-  invoice generate --from "Empresa, Lda." --to "Cliente, S.A." \
+  fatura generate --from "Empresa, Lda." --to "Cliente, S.A." \
     --item "Consultoria" --rate 500 --iva 0.23 \
     --seller-vat-id PT501234567 --buyer-vat-id PT509876543
 
-  invoice generate --client empresa-xpto --item "Manutenção" --rate 200 --iva 0.23
+  fatura generate --client empresa-xpto --item "Manutenção" --rate 200 --iva 0.23
 
-  invoice list
-  invoice show INV-2026-001
-  invoice send --to cliente@exemplo.pt --pdf fatura.pdf
+  fatura list
+  fatura show INV-2026-001
+  fatura send --to cliente@exemplo.pt --pdf fatura.pdf
 
 Configuração guardada em ~/.invoice/ (histórico, clientes, modelos, SMTP).`,
 }
@@ -284,22 +284,22 @@ ATCUD:
   O ATCUD aparece na fatura como <código>-<número sequencial>.
 
 Exemplos:
-  invoice generate --from "Empresa, Lda." --to "Cliente, S.A." \
+  fatura generate --from "Empresa, Lda." --to "Cliente, S.A." \
     --item "Serviços de consultoria" --quantity 8 --rate 75 \
     --iva 0.23 --seller-vat-id PT501234567 --buyer-vat-id PT509876543
 
-  invoice generate --client empresa-xpto \
+  fatura generate --client empresa-xpto \
     --item "Desenvolvimento" --quantity 20 --rate 90 --iva 0.23
 
-  invoice generate --import fatura.yaml --note "Ref. maio 2026."
+  fatura generate --import fatura.yaml --note "Ref. maio 2026."
 
-  invoice generate --item "Formação" --rate 1200 --exemption M09 \
+  fatura generate --item "Formação" --rate 1200 --exemption M09 \
     --seller-vat-id PT501234567
 
-  invoice generate --item "Desenvolvimento" --rate 100 --quantity 10 \
+  fatura generate --item "Desenvolvimento" --rate 100 --quantity 10 \
     --iva 0.23 --withholding 0.25
 
-  invoice generate --draft --from "Empresa" --to "Cliente" \
+  fatura generate --draft --from "Empresa" --to "Cliente" \
     --item "Teste" --rate 100`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Load client config first (lowest priority).
@@ -454,7 +454,7 @@ Mostra ID, data, cliente, total e caminho do ficheiro PDF para cada fatura.
 Os rascunhos são assinalados com [rascunho].
 
 Exemplo:
-  invoice list`,
+  fatura list`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		records, err := loadHistory()
 		if err != nil {
@@ -485,7 +485,7 @@ var showCmd = &cobra.Command{
 	Long: `Mostra os detalhes completos de uma fatura a partir do seu ID.
 
 Exemplo:
-  invoice show INV-2026-001`,
+  fatura show INV-2026-001`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id := args[0]
@@ -528,8 +528,8 @@ Configuração necessária (~/.invoice/config.yaml):
 Suporta STARTTLS (porta 587) e TLS implícito (porta 465).
 
 Exemplos:
-  invoice send --to cliente@exemplo.pt --pdf fatura.pdf
-  invoice send --to cliente@exemplo.pt --pdf fatura.pdf --subject "Fatura INV-2026-001"`,
+  fatura send --to cliente@exemplo.pt --pdf fatura.pdf
+  fatura send --to cliente@exemplo.pt --pdf fatura.pdf --subject "Fatura INV-2026-001"`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		to, _ := cmd.Flags().GetString("to")
 		pdfPath, _ := cmd.Flags().GetString("pdf")

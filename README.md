@@ -5,13 +5,13 @@ Gerador de faturas portuguesas em linha de comandos. Gera PDFs conformes com os 
 ## Instalação
 
 ```sh
-go install github.com/lisbonjoker/invoice@latest
+go install github.com/lisbonjoker/fatura@latest
 ```
 
 ## Utilização rápida
 
 ```bash
-invoice generate \
+fatura generate \
   --from "A Minha Empresa, Lda.\nRua Exemplo, 1\n1000-001 Lisboa\nNIF: 501234567" \
   --to "Empresa Cliente, S.A.\nAv. República, 50\n1050-187 Lisboa" \
   --item "Serviços de consultoria" --quantity 8 --rate 75 \
@@ -26,12 +26,12 @@ O PDF é guardado automaticamente em `~/.invoice/history/<cliente>/<ano>/<mês>/
 
 ## Comandos
 
-### `invoice generate`
+### `fatura generate`
 
 Gera um PDF de fatura e guarda-o no histórico.
 
 ```
-invoice generate [flags]
+fatura generate [flags]
 ```
 
 **Flags principais:**
@@ -77,35 +77,35 @@ invoice generate [flags]
 
 ---
 
-### `invoice list`
+### `fatura list`
 
 Lista todas as faturas emitidas.
 
 ```bash
-invoice list
+fatura list
 ```
 
 Mostra ID, data, cliente, total e caminho do PDF para cada fatura no histórico.
 
 ---
 
-### `invoice show <id>`
+### `fatura show <id>`
 
 Mostra os detalhes de uma fatura pelo seu ID.
 
 ```bash
-invoice show INV-2026-001
+fatura show INV-2026-001
 ```
 
 ---
 
-### `invoice send`
+### `fatura send`
 
 Envia uma fatura por email (requer SMTP configurado).
 
 ```bash
-invoice send --to cliente@exemplo.pt --pdf caminho/para/fatura.pdf
-invoice send --to cliente@exemplo.pt --pdf fatura.pdf --subject "Fatura INV-2026-001"
+fatura send --to cliente@exemplo.pt --pdf caminho/para/fatura.pdf
+fatura send --to cliente@exemplo.pt --pdf fatura.pdf --subject "Fatura INV-2026-001"
 ```
 
 ---
@@ -125,7 +125,7 @@ currency: EUR
 Utilizar o cliente guardado:
 
 ```bash
-invoice generate --client empresa-xpto \
+fatura generate --client empresa-xpto \
   --item "Desenvolvimento de software" --quantity 20 --rate 90 \
   --iva 0.23
 ```
@@ -137,7 +137,7 @@ invoice generate --client empresa-xpto \
 Guarde uma fatura como modelo para reutilização futura:
 
 ```bash
-invoice generate --client empresa-xpto \
+fatura generate --client empresa-xpto \
   --item "Manutenção mensal" --rate 500 \
   --iva 0.23 \
   --recur manutencao-mensal
@@ -146,7 +146,7 @@ invoice generate --client empresa-xpto \
 Reutilizar o modelo no mês seguinte:
 
 ```bash
-invoice generate --import ~/.invoice/recurring/manutencao-mensal.yaml
+fatura generate --import ~/.invoice/recurring/manutencao-mensal.yaml
 ```
 
 ---
@@ -156,7 +156,7 @@ invoice generate --import ~/.invoice/recurring/manutencao-mensal.yaml
 Quando o IVA é zero, utilize `--exemption` com o código AT correspondente:
 
 ```bash
-invoice generate \
+fatura generate \
   --item "Formação profissional" --rate 1200 \
   --exemption M09
 ```
@@ -199,7 +199,7 @@ A taxa padrão para a maioria dos trabalhadores independentes a faturar a empres
 - Freelancers com rendimento anual abaixo de €14.500 (isenção de retenção)
 
 ```bash
-invoice generate \
+fatura generate \
   --item "Desenvolvimento web" --quantity 10 --rate 100 \
   --iva 0.23 --withholding 0.25 \
   --seller-vat-id PT501234567 --buyer-vat-id PT509876543
@@ -212,7 +212,7 @@ invoice generate \
 O ATCUD é obrigatório para faturas emitidas por software certificado pela AT. Obtenha o código de validação no portal AT e indique-o com `--atcud-code`:
 
 ```bash
-invoice generate \
+fatura generate \
   --atcud-code "CSDF7T5V" \
   --item "Consultoria" --rate 500 \
   --iva 0.23
@@ -238,7 +238,7 @@ smtp:
 Enviar uma fatura:
 
 ```bash
-invoice send \
+fatura send \
   --to cliente@exemplo.pt \
   --pdf ~/.invoice/history/empresa-cliente/2026/05/INV-2026-001-empresa-cliente.pdf \
   --subject "Fatura INV-2026-001 — Maio 2026"
@@ -292,19 +292,19 @@ item_columns: "qty,rate,amount"
 ```
 
 ```bash
-invoice generate --import fatura.yaml --note "Referente ao mês de maio de 2026."
+fatura generate --import fatura.yaml --note "Referente ao mês de maio de 2026."
 ```
 
 ---
 
 ## Variáveis de ambiente
 
-Todas as flags também podem ser definidas por variáveis de ambiente com o prefixo `INVOICE_`:
+Todas as flags também podem ser definidas por variáveis de ambiente com o prefixo `FATURA_`:
 
 ```bash
-export INVOICE_FROM="A Minha Empresa, Lda."
-export INVOICE_SELLER_VAT_ID="PT501234567"
-export INVOICE_IVA=0.23
+export FATURA_FROM="A Minha Empresa, Lda."
+export FATURA_SELLER_VAT_ID="PT501234567"
+export FATURA_IVA=0.23
 ```
 
 ---
