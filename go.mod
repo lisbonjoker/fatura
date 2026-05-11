@@ -1,6 +1,6 @@
 module github.com/lisbonjoker/fatura
 
-go 1.20
+go 1.21
 
 require (
 	github.com/signintech/gopdf v0.19.0
