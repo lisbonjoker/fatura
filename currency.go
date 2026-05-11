@@ -1,14 +1,14 @@
 package main
 
 var currencySymbols = map[string]string{
-	"USD": "$",
 	"EUR": "€",
+	"USD": "$",
 	"GBP": "£",
-	"JPY": "¥",
-	"CNY": "¥",
-	"INR": "₹",
-	"RUB": "₽",
-	"KRW": "₩",
-	"BRL": "R$",
-	"SGD": "SGD$",
+}
+
+func currencySymbol(currency string) string {
+	if sym, ok := currencySymbols[currency]; ok {
+		return sym
+	}
+	return currency + " "
 }
