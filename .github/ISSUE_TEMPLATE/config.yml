@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Vulnerabilidade de segurança
+    url: https://github.com/lisbonjoker/invoice/issues/new?title=%5BSEGURAN%C3%87A%5D+
+    about: Para reportar uma vulnerabilidade de segurança, abra uma issue com o título [SEGURANÇA].

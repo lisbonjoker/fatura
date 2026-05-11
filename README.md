@@ -1,4 +1,4 @@
-# invoice
+# fatura
 
 Gerador de faturas portuguesas em linha de comandos. Gera PDFs conformes com os requisitos da Autoridade Tributária (AT), incluindo IVA, isenções, ATCUD e numeração sequencial automática.
 
@@ -20,7 +20,7 @@ fatura generate \
   --payment-terms "30 dias"
 ```
 
-O PDF é guardado automaticamente em `~/.invoice/history/<cliente>/<ano>/<mês>/<id>-<cliente>.pdf`.
+O PDF é guardado automaticamente em `~/.fatura/history/<cliente>/<ano>/<mês>/<id>-<cliente>.pdf`.
 
 ---
 
@@ -61,7 +61,7 @@ fatura generate [flags]
 | `--logo` / `-l` | Caminho para o logótipo (PNG/JPG) |
 | `--id` | Número de fatura manual (gerado automaticamente se omitido) |
 | `--draft` | Gerar rascunho com marca de água (não incrementa contador) |
-| `--client` | Carregar configuração de cliente em `~/.invoice/clients/<nome>.yaml` |
+| `--client` | Carregar configuração de cliente em `~/.fatura/clients/<nome>.yaml` |
 | `--recur` | Guardar como modelo recorrente com este nome |
 | `--item-columns` | Colunas da tabela: `date,time,category,qty,rate,amount` |
 | `--item-date` | Data por artigo (repetível) |
@@ -71,7 +71,7 @@ fatura generate [flags]
 | `--import` | Importar dados de ficheiro `.json` ou `.yaml` |
 | `--title` | Título do documento (predefinição: `FATURA`) |
 
-**Numeração automática:** Cada fatura recebe um número sequencial no formato `INV-YYYY-NNN` (ex: `INV-2026-001`). O contador é guardado em `~/.invoice/counter.json` por ano.
+**Numeração automática:** Cada fatura recebe um número sequencial no formato `INV-YYYY-NNN` (ex: `INV-2026-001`). O contador é guardado em `~/.fatura/counter.json` por ano.
 
 **Rascunho:** Com `--draft`, é gerado um PDF com marca de água `RASCUNHO`. O número não é consumido do contador.
 
@@ -112,10 +112,10 @@ fatura send --to cliente@exemplo.pt --pdf fatura.pdf --subject "Fatura INV-2026-
 
 ## Configuração de clientes
 
-Guarde as configurações recorrentes de um cliente em `~/.invoice/clients/<nome>.yaml`:
+Guarde as configurações recorrentes de um cliente em `~/.fatura/clients/<nome>.yaml`:
 
 ```yaml
-# ~/.invoice/clients/empresa-xpto.yaml
+# ~/.fatura/clients/empresa-xpto.yaml
 to: "Empresa XPTO, S.A.\nRua das Flores, 10\n4000-001 Porto"
 buyer_vat_id: "PT509876543"
 payment_terms: "30 dias"
@@ -146,7 +146,7 @@ fatura generate --client empresa-xpto \
 Reutilizar o modelo no mês seguinte:
 
 ```bash
-fatura generate --import ~/.invoice/recurring/manutencao-mensal.yaml
+fatura generate --import ~/.fatura/recurring/manutencao-mensal.yaml
 ```
 
 ---
@@ -164,7 +164,7 @@ fatura generate \
 Códigos mais comuns:
 
 | Código | Motivo | Referência Legal |
-|--------|--------|-----------------|
+|--------|--------|------------------|
 | M01 | Artigo 16.º n.º 6 do CIVA | Art. 16.º n.º 6 CIVA |
 | M02 | Artigo 6.º do Decreto‑Lei n.º 198/90 | DL n.º 198/90 |
 | M04 | Isento — Artigo 13.º do CIVA | Art. 13.º CIVA |
@@ -224,7 +224,7 @@ O ATCUD será apresentado na fatura como `CSDF7T5V-001` (código de validação 
 
 ## Configuração SMTP (envio de email)
 
-Crie o ficheiro `~/.invoice/config.yaml`:
+Crie o ficheiro `~/.fatura/config.yaml`:
 
 ```yaml
 smtp:
@@ -240,7 +240,7 @@ Enviar uma fatura:
 ```bash
 fatura send \
   --to cliente@exemplo.pt \
-  --pdf ~/.invoice/history/empresa-cliente/2026/05/INV-2026-001-empresa-cliente.pdf \
+  --pdf ~/.fatura/history/empresa-cliente/2026/05/INV-2026-001-empresa-cliente.pdf \
   --subject "Fatura INV-2026-001 — Maio 2026"
 ```
 
@@ -249,7 +249,7 @@ fatura send \
 ## Estrutura de ficheiros
 
 ```
-~/.invoice/
+~/.fatura/
 ├── config.yaml              # Configuração SMTP e global
 ├── counter.json             # Contadores de numeração por ano
 ├── history.json             # Histórico de faturas emitidas
