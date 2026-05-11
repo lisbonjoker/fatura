@@ -161,13 +161,71 @@ func init() {
 var rootCmd = &cobra.Command{
 	Use:   "invoice",
 	Short: "Gerador de faturas portuguesas em linha de comandos.",
-	Long:  `Gerador de faturas portuguesas em linha de comandos.`,
+	Long: `invoice — Gerador de faturas portuguesas em linha de comandos.
+
+Gera PDFs de faturas conformes com os requisitos da Autoridade Tributária (AT),
+incluindo numeração sequencial automática, isenções de IVA (M01–M99), ATCUD,
+NIF de emitente/cliente e envio por email.
+
+Comandos disponíveis:
+  generate   Gerar um PDF de fatura
+  list       Listar faturas emitidas
+  show       Mostrar detalhes de uma fatura
+  send       Enviar fatura por email
+
+Exemplos:
+  invoice generate --from "Empresa, Lda." --to "Cliente, S.A." \
+    --item "Consultoria" --rate 500 --iva 0.23 \
+    --seller-vat-id PT501234567 --buyer-vat-id PT509876543
+
+  invoice generate --client empresa-xpto --item "Manutenção" --rate 200 --iva 0.23
+
+  invoice list
+  invoice show INV-2026-001
+  invoice send --to cliente@exemplo.pt --pdf fatura.pdf
+
+Configuração guardada em ~/.invoice/ (histórico, clientes, modelos, SMTP).`,
 }
 
 var generateCmd = &cobra.Command{
 	Use:   "generate",
-	Short: "Gerar uma fatura",
-	Long:  `Gerar uma fatura`,
+	Short: "Gerar uma fatura em PDF",
+	Long: `Gera um PDF de fatura e guarda-o automaticamente em:
+  ~/.invoice/history/<cliente>/<ano>/<mês>/<id>-<cliente>.pdf
+
+O número de fatura é atribuído automaticamente no formato INV-YYYY-NNN
+(ex: INV-2026-001). O contador anual é guardado em ~/.invoice/counter.json.
+
+Com --draft, é gerado um rascunho com marca de água "RASCUNHO" sem consumir
+um número do contador.
+
+Configuração de cliente:
+  Guarde dados recorrentes em ~/.invoice/clients/<nome>.yaml e carregue-os
+  com --client <nome>. Os flags da linha de comandos têm sempre precedência.
+
+Isenção de IVA:
+  Use --exemption <código> com um código AT (ex: M07, M09). O motivo e a
+  referência legal correspondentes são preenchidos automaticamente.
+
+ATCUD:
+  Obtenha o código de validação no portal AT e indique-o com --atcud-code.
+  O ATCUD aparece na fatura como <código>-<número sequencial>.
+
+Exemplos:
+  invoice generate --from "Empresa, Lda." --to "Cliente, S.A." \
+    --item "Serviços de consultoria" --quantity 8 --rate 75 \
+    --iva 0.23 --seller-vat-id PT501234567 --buyer-vat-id PT509876543
+
+  invoice generate --client empresa-xpto \
+    --item "Desenvolvimento" --quantity 20 --rate 90 --iva 0.23
+
+  invoice generate --import fatura.yaml --note "Ref. maio 2026."
+
+  invoice generate --item "Formação" --rate 1200 --exemption M09 \
+    --seller-vat-id PT501234567
+
+  invoice generate --draft --from "Empresa" --to "Cliente" \
+    --item "Teste" --rate 100`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Load client config first (lowest priority).
 		if clientName != "" {
@@ -310,6 +368,13 @@ var generateCmd = &cobra.Command{
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "Listar faturas emitidas",
+	Long: `Lista todas as faturas guardadas no histórico (~/.invoice/history.json).
+
+Mostra ID, data, cliente, total e caminho do ficheiro PDF para cada fatura.
+Os rascunhos são assinalados com [rascunho].
+
+Exemplo:
+  invoice list`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		records, err := loadHistory()
 		if err != nil {
@@ -337,7 +402,11 @@ var listCmd = &cobra.Command{
 var showCmd = &cobra.Command{
 	Use:   "show <id>",
 	Short: "Mostrar detalhes de uma fatura",
-	Args:  cobra.ExactArgs(1),
+	Long: `Mostra os detalhes completos de uma fatura a partir do seu ID.
+
+Exemplo:
+  invoice show INV-2026-001`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id := args[0]
 		records, err := loadHistory()
@@ -365,6 +434,22 @@ var showCmd = &cobra.Command{
 var sendCmd = &cobra.Command{
 	Use:   "send",
 	Short: "Enviar fatura por email",
+	Long: `Envia um PDF de fatura por email utilizando as credenciais SMTP em
+~/.invoice/config.yaml.
+
+Configuração necessária (~/.invoice/config.yaml):
+  smtp:
+    host: smtp.exemplo.pt
+    port: 587
+    user: utilizador@exemplo.pt
+    password: palavra-passe
+    from: Empresa <faturacao@exemplo.pt>
+
+Suporta STARTTLS (porta 587) e TLS implícito (porta 465).
+
+Exemplos:
+  invoice send --to cliente@exemplo.pt --pdf fatura.pdf
+  invoice send --to cliente@exemplo.pt --pdf fatura.pdf --subject "Fatura INV-2026-001"`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		to, _ := cmd.Flags().GetString("to")
 		pdfPath, _ := cmd.Flags().GetString("pdf")
