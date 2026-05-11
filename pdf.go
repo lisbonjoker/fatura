@@ -205,22 +205,18 @@ func writeExemptionReason(pdf *gopdf.GoPdf, code, reason, legalReference string)
 	pdf.SetTextColor(55, 55, 55)
 	_ = pdf.Cell(nil, "MOTIVO DE ISENÇÃO DE IVA")
 	pdf.Br(18)
-	if code != "" {
-		_ = pdf.SetFont("Inter-Bold", "", 9.5)
-		pdf.SetTextColor(0, 0, 0)
-		_ = pdf.Cell(nil, code)
-		if reason != "" {
-			_ = pdf.SetFont("Inter", "", 9.5)
-			pdf.SetTextColor(55, 55, 55)
-			_ = pdf.Cell(nil, "  —  "+reason)
+	_ = pdf.SetFont("Inter", "", 9.5)
+	pdf.SetTextColor(0, 0, 0)
+	line := code
+	if reason != "" {
+		if line != "" {
+			line += " - " + reason
+		} else {
+			line = reason
 		}
-		pdf.Br(14)
-	} else if reason != "" {
-		_ = pdf.SetFont("Inter", "", 9)
-		pdf.SetTextColor(0, 0, 0)
-		_ = pdf.Cell(nil, reason)
-		pdf.Br(14)
 	}
+	_ = pdf.Cell(nil, line)
+	pdf.Br(14)
 	if legalReference != "" {
 		_ = pdf.SetFont("Inter", "", 8.5)
 		pdf.SetTextColor(75, 75, 75)
