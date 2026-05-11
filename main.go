@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,6 +17,21 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
+
+// buildVersion is overridden at build time via:
+//
+//	go build -ldflags "-X main.buildVersion=v1.2.3"
+var buildVersion = ""
+
+func getVersion() string {
+	if buildVersion != "" {
+		return buildVersion
+	}
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return "dev"
+}
 
 //go:embed "Inter/Inter Variable/Inter.ttf"
 var interFont []byte
@@ -157,7 +173,7 @@ func init() {
 	_ = sendCmd.MarkFlagRequired("to")
 	_ = sendCmd.MarkFlagRequired("pdf")
 
-	rootCmd.AddCommand(generateCmd, listCmd, showCmd, sendCmd)
+	rootCmd.AddCommand(generateCmd, listCmd, showCmd, sendCmd, versionCmd)
 
 	// Remove the shell completion command — not needed for end users.
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
@@ -205,7 +221,7 @@ Utilize "{{.CommandPath}} [comando] --help" para mais informação sobre um coma
 `)
 
 	// Translate the --help flag description on every command.
-	for _, cmd := range []*cobra.Command{rootCmd, generateCmd, listCmd, showCmd, sendCmd} {
+	for _, cmd := range []*cobra.Command{rootCmd, generateCmd, listCmd, showCmd, sendCmd, versionCmd} {
 		cmd.InitDefaultHelpFlag()
 		if f := cmd.Flags().Lookup("help"); f != nil {
 			f.Usage = "Mostrar esta ajuda"
@@ -227,6 +243,7 @@ Comandos disponíveis:
   list       Listar faturas emitidas
   show       Mostrar detalhes de uma fatura
   send       Enviar fatura por email
+  version    Mostrar a versão instalada
 
 Exemplos:
   invoice generate --from "Empresa, Lda." --to "Cliente, S.A." \
@@ -618,6 +635,14 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n-1] + "…"
+}
+
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Mostrar a versão instalada",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("invoice " + getVersion())
+	},
 }
 
 func main() {
