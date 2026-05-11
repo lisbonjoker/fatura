@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 	"log"
+	"math/rand"
 	"slices"
 	"strconv"
 	"strings"
@@ -58,9 +59,19 @@ type Invoice struct {
 	Note            string `json:"note"             yaml:"note"`
 }
 
+const idChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+func randomSuffix(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = idChars[rand.Intn(len(idChars))]
+	}
+	return string(b)
+}
+
 func defaultInvoice() Invoice {
 	return Invoice{
-		Id:          time.Now().Format("20060102"),
+		Id:          time.Now().Format("20060102") + "-" + randomSuffix(4),
 		Title:       "FATURA",
 		Rates:       []float64{50},
 		Quantities:  []float64{1},
