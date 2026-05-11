@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/signintech/gopdf"
@@ -34,12 +36,12 @@ type Invoice struct {
 	SellerVATID string `json:"seller_vat_id" yaml:"seller_vat_id"`
 	BuyerVATID  string `json:"buyer_vat_id"  yaml:"buyer_vat_id"`
 
-	Items          []string  `json:"items"            yaml:"items"`
-	ItemDates      []string  `json:"item_dates"       yaml:"item_dates"`
-	ItemTimes      []string  `json:"item_times"       yaml:"item_times"`
-	ItemCategories []string  `json:"item_categories"  yaml:"item_categories"`
-	Quantities     []float64 `json:"quantities"       yaml:"quantities"`
-	Rates          []float64 `json:"rates"            yaml:"rates"`
+	Items          []string  `json:"items"           yaml:"items"`
+	ItemDates      []string  `json:"item_dates"      yaml:"item_dates"`
+	ItemTimes      []string  `json:"item_times"      yaml:"item_times"`
+	ItemCategories []string  `json:"item_categories" yaml:"item_categories"`
+	Quantities     []float64 `json:"quantities"      yaml:"quantities"`
+	Rates          []float64 `json:"rates"           yaml:"rates"`
 
 	ItemColumns        string `json:"item_columns"         yaml:"item_columns"`
 	ShowDateColumn     bool   `json:"show_date_column"     yaml:"show_date_column"`
@@ -57,6 +59,7 @@ type Invoice struct {
 	ExemptionReason string `json:"exemption_reason" yaml:"exemption_reason"`
 	LegalReference  string `json:"legal_reference"  yaml:"legal_reference"`
 	Reference       string `json:"reference"        yaml:"reference"`
+	ATCUDCode       string `json:"atcud_code"       yaml:"atcud_code"`
 	PaymentTerms    string `json:"payment_terms"    yaml:"payment_terms"`
 	Note            string `json:"note"             yaml:"note"`
 }
@@ -73,7 +76,6 @@ func randomSuffix(n int) string {
 
 func defaultInvoice() Invoice {
 	return Invoice{
-		Id:          time.Now().Format("20060102") + "-" + randomSuffix(4),
 		Title:       "FATURA",
 		Rates:       []float64{50},
 		Quantities:  []float64{1},
@@ -95,6 +97,9 @@ var (
 	fromLines     []string
 	toLines       []string
 	quantityInput []string
+	clientName    string
+	recurName     string
+	draft         bool
 	invoice       = Invoice{}
 )
 
@@ -103,9 +108,13 @@ func init() {
 
 	d := defaultInvoice()
 
+	// generate
 	generateCmd.Flags().StringVar(&importPath, "import", "", "Ficheiro importado (.json/.yaml)")
-	generateCmd.Flags().StringVar(&invoice.Id, "id", d.Id, "Número de fatura")
+	generateCmd.Flags().StringVar(&invoice.Id, "id", "", "Número de fatura (gerado automaticamente se omitido)")
 	generateCmd.Flags().StringVar(&invoice.Title, "title", d.Title, "Título")
+	generateCmd.Flags().StringVar(&clientName, "client", "", "Nome do cliente em ~/.invoice/clients/<nome>.yaml")
+	generateCmd.Flags().StringVar(&recurName, "recur", "", "Guardar como modelo recorrente com este nome")
+	generateCmd.Flags().BoolVar(&draft, "draft", false, "Gerar rascunho com marca de água RASCUNHO (não incrementa contador)")
 
 	generateCmd.Flags().Float64SliceVarP(&invoice.Rates, "rate", "r", d.Rates, "Preços unitários")
 	generateCmd.Flags().StringSliceVarP(&quantityInput, "quantity", "q", []string{"1"}, "Quantidades (suporta decimais, ex: 0.25)")
@@ -129,14 +138,24 @@ func init() {
 	generateCmd.Flags().Float64VarP(&invoice.Discount, "discount", "d", d.Discount, "Desconto")
 	generateCmd.Flags().StringVarP(&invoice.Currency, "currency", "c", d.Currency, "Moeda")
 
-	generateCmd.Flags().StringVar(&exemptionCodeFlag, "exemption", "", "Código de isenção AT (ex: M07, M01, M99). Ver lista completa em --help")
-	generateCmd.Flags().StringVar(&invoice.ExemptionReason, "exemption-reason", "", "Motivo de isenção personalizado (substitui o do código AT)")
-	generateCmd.Flags().StringVar(&invoice.LegalReference, "legal-reference", "", "Referência legal personalizada (substitui a do código AT)")
+	generateCmd.Flags().StringVar(&exemptionCodeFlag, "exemption", "", "Código de isenção AT (ex: M07, M01, M99)")
+	generateCmd.Flags().StringVar(&invoice.ExemptionReason, "exemption-reason", "", "Motivo de isenção personalizado")
+	generateCmd.Flags().StringVar(&invoice.LegalReference, "legal-reference", "", "Referência legal personalizada")
 	generateCmd.Flags().StringVar(&invoice.Reference, "reference", "", "Referência de encomenda/PO (ex: PO-2026-001)")
+	generateCmd.Flags().StringVar(&invoice.ATCUDCode, "atcud-code", "", "Código de validação ATCUD (obtido no portal AT)")
 	generateCmd.Flags().StringVar(&invoice.PaymentTerms, "payment-terms", "", "Condições de pagamento (ex: 30 dias)")
 	generateCmd.Flags().StringVar(&invoice.ItemColumns, "item-columns", d.ItemColumns, "Colunas dos artigos: date,time,category,qty,rate,amount")
 	generateCmd.Flags().StringVarP(&invoice.Note, "note", "n", "", "Observações")
 	generateCmd.Flags().StringVarP(&output, "output", "o", "fatura.pdf", "Ficheiro de saída (.pdf)")
+
+	// send
+	sendCmd.Flags().StringP("to", "t", "", "Endereço de email do destinatário")
+	sendCmd.Flags().StringP("pdf", "p", "", "Caminho para o ficheiro PDF")
+	sendCmd.Flags().StringP("subject", "s", "", "Assunto do email")
+	_ = sendCmd.MarkFlagRequired("to")
+	_ = sendCmd.MarkFlagRequired("pdf")
+
+	rootCmd.AddCommand(generateCmd, listCmd, showCmd, sendCmd)
 }
 
 var rootCmd = &cobra.Command{
@@ -150,19 +169,52 @@ var generateCmd = &cobra.Command{
 	Short: "Gerar uma fatura",
 	Long:  `Gerar uma fatura`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Load client config first (lowest priority).
+		if clientName != "" {
+			loaded, err := loadClientConfig(clientName)
+			if err != nil {
+				return err
+			}
+			mergeInvoice(&invoice, loaded)
+		}
+
 		if importPath != "" {
 			if err := importData(importPath, &invoice, cmd.Flags()); err != nil {
 				return err
 			}
 		}
+
 		applyExemptionCode(&invoice)
 		applyAddressLines(cmd, &invoice)
 		if err := applyQuantities(cmd, &invoice); err != nil {
 			return err
 		}
 		applyItemColumnVisibility(&invoice)
-		if err := validateInvoiceCompliance(invoice); err != nil {
-			return err
+
+		// Assign invoice number: auto-increment for real invoices, DRAFT prefix for drafts.
+		if invoice.Id == "" {
+			if draft {
+				invoice.Id = "RASCUNHO-" + time.Now().Format("20060102") + "-" + randomSuffix(4)
+			} else {
+				id, err := nextInvoiceNumber()
+				if err != nil {
+					return err
+				}
+				invoice.Id = id
+			}
+		}
+
+		// Build ATCUD string: VALIDATION_CODE-SEQUENCE (if validation code supplied).
+		atcud := ""
+		if invoice.ATCUDCode != "" {
+			seq := strings.TrimPrefix(invoice.Id, fmt.Sprintf("INV-%d-", time.Now().Year()))
+			atcud = invoice.ATCUDCode + "-" + seq
+		}
+
+		if !draft {
+			if err := validateInvoiceCompliance(invoice); err != nil {
+				return err
+			}
 		}
 
 		pdf := gopdf.GoPdf{}
@@ -177,8 +229,12 @@ var generateCmd = &cobra.Command{
 			return err
 		}
 
+		if draft {
+			writeDraftWatermark(&pdf)
+		}
+
 		writeLogo(&pdf, invoice.Logo, invoice.From)
-		writeTitle(&pdf, invoice.Title, invoice.Id, invoice.Date)
+		writeTitle(&pdf, invoice.Title, invoice.Id, invoice.Date, atcud)
 		writeBillTo(&pdf, invoice.To)
 		writeRegulatoryDetails(&pdf, invoice)
 		writeHeaderRow(&pdf, invoice)
@@ -218,9 +274,129 @@ var generateCmd = &cobra.Command{
 		if err := pdf.WritePdf(output); err != nil {
 			return err
 		}
-		fmt.Printf("Fatura gerada: %s\n", output)
+
+		total := subtotal + subtotal*invoice.Tax - subtotal*invoice.Discount
+		if !draft {
+			_ = saveToHistory(invoice, output, total, false)
+		}
+
+		if recurName != "" {
+			if err := saveRecurringTemplate(recurName, invoice); err != nil {
+				fmt.Fprintf(os.Stderr, "aviso: não foi possível guardar modelo recorrente: %v\n", err)
+			} else {
+				fmt.Printf("Modelo recorrente guardado: ~/.invoice/recurring/%s.yaml\n", recurName)
+			}
+		}
+
+		label := "Fatura gerada"
+		if draft {
+			label = "Rascunho gerado"
+		}
+		fmt.Printf("%s: %s\n", label, output)
 		return nil
 	},
+}
+
+var listCmd = &cobra.Command{
+	Use:   "list",
+	Short: "Listar faturas emitidas",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		records, err := loadHistory()
+		if err != nil {
+			return err
+		}
+		if len(records) == 0 {
+			fmt.Println("Nenhuma fatura emitida.")
+			return nil
+		}
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "ID\tDATA\tCLIENTE\tTOTAL\tFICHEIRO")
+		for _, r := range records {
+			label := r.Id
+			if r.Draft {
+				label += " [rascunho]"
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s%.2f\t%s\n",
+				label, r.Date, truncate(r.To, 30),
+				currencySymbol(r.Currency), r.Total, r.PDF)
+		}
+		return w.Flush()
+	},
+}
+
+var showCmd = &cobra.Command{
+	Use:   "show <id>",
+	Short: "Mostrar detalhes de uma fatura",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		id := args[0]
+		records, err := loadHistory()
+		if err != nil {
+			return err
+		}
+		for _, r := range records {
+			if r.Id == id {
+				fmt.Printf("ID:         %s\n", r.Id)
+				fmt.Printf("Cliente:    %s\n", r.To)
+				fmt.Printf("Data:       %s\n", r.Date)
+				fmt.Printf("Total:      %s%.2f\n", currencySymbol(r.Currency), r.Total)
+				fmt.Printf("Ficheiro:   %s\n", r.PDF)
+				fmt.Printf("Emitida em: %s\n", r.IssuedAt)
+				if r.Draft {
+					fmt.Println("Tipo:       Rascunho")
+				}
+				return nil
+			}
+		}
+		return fmt.Errorf("fatura %q não encontrada", id)
+	},
+}
+
+var sendCmd = &cobra.Command{
+	Use:   "send",
+	Short: "Enviar fatura por email",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		to, _ := cmd.Flags().GetString("to")
+		pdfPath, _ := cmd.Flags().GetString("pdf")
+		subject, _ := cmd.Flags().GetString("subject")
+		if subject == "" {
+			subject = "Fatura"
+		}
+		cfg, err := loadGlobalConfig()
+		if err != nil {
+			return err
+		}
+		if err := sendInvoiceEmail(to, subject, pdfPath, cfg.SMTP); err != nil {
+			return err
+		}
+		fmt.Printf("Fatura enviada para %s\n", to)
+		return nil
+	},
+}
+
+// mergeInvoice copies non-zero fields from src into dst (dst takes precedence).
+func mergeInvoice(dst *Invoice, src Invoice) {
+	if dst.To == "" || dst.To == defaultInvoice().To {
+		dst.To = src.To
+	}
+	if dst.BuyerVATID == "" {
+		dst.BuyerVATID = src.BuyerVATID
+	}
+	if dst.From == "" || dst.From == defaultInvoice().From {
+		dst.From = src.From
+	}
+	if dst.SellerVATID == "" {
+		dst.SellerVATID = src.SellerVATID
+	}
+	if dst.Currency == "" {
+		dst.Currency = src.Currency
+	}
+	if dst.PaymentTerms == "" {
+		dst.PaymentTerms = src.PaymentTerms
+	}
+	if dst.Note == "" {
+		dst.Note = src.Note
+	}
 }
 
 func applyAddressLines(cmd *cobra.Command, inv *Invoice) {
@@ -284,8 +460,14 @@ func applyQuantities(cmd *cobra.Command, inv *Invoice) error {
 	return nil
 }
 
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n-1] + "…"
+}
+
 func main() {
-	rootCmd.AddCommand(generateCmd)
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)
 	}
