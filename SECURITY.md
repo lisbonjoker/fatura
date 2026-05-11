@@ -1,5 +1,5 @@
-# Security Policy
+# Política de Segurança
 
-## Reporting a Vulnerability
+## Reportar uma Vulnerabilidade
 
-Report security vulnerabilities to [maas@lalani.dev](mailto:maas@lalani.dev).
+Reporte vulnerabilidades de segurança para [maas@lalani.dev](mailto:maas@lalani.dev).
