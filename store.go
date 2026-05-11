@@ -49,7 +49,7 @@ func sanitizeName(s string) string {
 	return result
 }
 
-// invoicePDFPath returns ~/.invoice/history/<client>/<year>/<month>/<id>-<client>.pdf
+// invoicePDFPath returns ~/.fatura/history/<client>/<year>/<month>/<id>-<client>.pdf
 func invoicePDFPath(inv Invoice) (string, error) {
 	dir, err := invoiceConfigDir()
 	if err != nil {
@@ -110,7 +110,7 @@ func invoiceConfigDir() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("não foi possível encontrar o diretório home: %w", err)
 	}
-	dir := filepath.Join(home, ".invoice")
+	dir := filepath.Join(home, ".fatura")
 	return dir, os.MkdirAll(dir, 0755)
 }
 
