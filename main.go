@@ -61,6 +61,7 @@ type Invoice struct {
 	Reference       string `json:"reference"        yaml:"reference"`
 	ATCUDCode       string `json:"atcud_code"       yaml:"atcud_code"`
 	PaymentTerms    string `json:"payment_terms"    yaml:"payment_terms"`
+	Withholding     float64 `json:"withholding"    yaml:"withholding"`
 	Note            string `json:"note"             yaml:"note"`
 }
 
@@ -144,6 +145,7 @@ func init() {
 	generateCmd.Flags().StringVar(&invoice.Reference, "reference", "", "Referência de encomenda/PO (ex: PO-2026-001)")
 	generateCmd.Flags().StringVar(&invoice.ATCUDCode, "atcud-code", "", "Código de validação ATCUD (obtido no portal AT)")
 	generateCmd.Flags().StringVar(&invoice.PaymentTerms, "payment-terms", "", "Condições de pagamento (ex: 30 dias)")
+	generateCmd.Flags().Float64Var(&invoice.Withholding, "withholding", 0, "Taxa de retenção na fonte IRS (ex: 0.25 para 25%)")
 	generateCmd.Flags().StringVar(&invoice.ItemColumns, "item-columns", d.ItemColumns, "Colunas dos artigos: date,time,category,qty,rate,amount")
 	generateCmd.Flags().StringVarP(&invoice.Note, "note", "n", "", "Observações")
 	generateCmd.Flags().StringVarP(&output, "output", "o", "fatura.pdf", "Ficheiro de saída (.pdf)")
@@ -223,6 +225,9 @@ Exemplos:
 
   invoice generate --item "Formação" --rate 1200 --exemption M09 \
     --seller-vat-id PT501234567
+
+  invoice generate --item "Desenvolvimento" --rate 100 --quantity 10 \
+    --iva 0.23 --withholding 0.25
 
   invoice generate --draft --from "Empresa" --to "Cliente" \
     --item "Teste" --rate 100`,
@@ -319,7 +324,7 @@ Exemplos:
 		if invoice.Note != "" {
 			writeNotes(&pdf, invoice.Note)
 		}
-		writeTotals(&pdf, invoice, subtotal, subtotal*invoice.Tax, subtotal*invoice.Discount, invoice.Tax, totalQty)
+		writeTotals(&pdf, invoice, subtotal, subtotal*invoice.Tax, subtotal*invoice.Discount, invoice.Tax, subtotal*invoice.Withholding, invoice.Withholding, totalQty)
 		if invoice.Due != "" {
 			writeDueDate(&pdf, invoice.Due)
 		}
@@ -343,7 +348,7 @@ Exemplos:
 			return err
 		}
 
-		total := subtotal + subtotal*invoice.Tax - subtotal*invoice.Discount
+		total := subtotal + subtotal*invoice.Tax - subtotal*invoice.Withholding - subtotal*invoice.Discount
 		if !draft {
 			_ = saveToHistory(invoice, output, total, false)
 		}

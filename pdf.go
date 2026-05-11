@@ -24,10 +24,12 @@ const (
 )
 
 const (
-	subtotalLabel = "Subtotal"
-	discountLabel = "Desconto"
-	taxLabel      = "IVA"
-	totalLabel    = "Total"
+	subtotalLabel    = "Subtotal"
+	discountLabel    = "Desconto"
+	taxLabel         = "IVA"
+	withholdingLabel = "Retenção IRS"
+	totalLabel       = "Total"
+	totalToPayLabel  = "Total a pagar"
 )
 
 func writeLogo(pdf *gopdf.GoPdf, logo string, from string) {
@@ -286,20 +288,27 @@ func writeRow(pdf *gopdf.GoPdf, invoice Invoice, i int, item string, quantity fl
 	pdf.Br(24)
 }
 
-func writeTotals(pdf *gopdf.GoPdf, invoice Invoice, subtotal, tax, discount, taxRate, totalQty float64) {
+func writeTotals(pdf *gopdf.GoPdf, invoice Invoice, subtotal, tax, discount, taxRate, withholding, withholdingRate, totalQty float64) {
 	pdf.SetY(600)
 
 	if invoice.ShowQuantityColumn {
 		writeQuantityTotal(pdf, totalQty)
 	}
-	writeTotal(pdf, subtotalLabel, subtotal, invoice.Currency)
+	writeTotal(pdf, subtotalLabel, subtotal, invoice.Currency, false)
 	if tax > 0 {
-		writeTotal(pdf, fmt.Sprintf("%s (%.2f%%)", taxLabel, taxRate*100), tax, invoice.Currency)
+		writeTotal(pdf, fmt.Sprintf("%s (%.2f%%)", taxLabel, taxRate*100), tax, invoice.Currency, false)
+	}
+	if withholding > 0 {
+		writeTotal(pdf, fmt.Sprintf("%s (%.2f%%)", withholdingLabel, withholdingRate*100), withholding, invoice.Currency, true)
 	}
 	if discount > 0 {
-		writeTotal(pdf, discountLabel, discount, invoice.Currency)
+		writeTotal(pdf, discountLabel, discount, invoice.Currency, false)
 	}
-	writeTotal(pdf, totalLabel, subtotal+tax-discount, invoice.Currency)
+	finalLabel := totalLabel
+	if withholding > 0 {
+		finalLabel = totalToPayLabel
+	}
+	writeTotal(pdf, finalLabel, subtotal+tax-withholding-discount, invoice.Currency, false)
 }
 
 func writeQuantityTotal(pdf *gopdf.GoPdf, totalQty float64) {
@@ -314,7 +323,7 @@ func writeQuantityTotal(pdf *gopdf.GoPdf, totalQty float64) {
 	pdf.Br(24)
 }
 
-func writeTotal(pdf *gopdf.GoPdf, label string, total float64, currency string) {
+func writeTotal(pdf *gopdf.GoPdf, label string, total float64, currency string, negative bool) {
 	_ = pdf.SetFont("Inter", "", 9)
 	pdf.SetTextColor(75, 75, 75)
 	pdf.SetX(totalsLabelOffset)
@@ -322,10 +331,14 @@ func writeTotal(pdf *gopdf.GoPdf, label string, total float64, currency string) 
 	pdf.SetTextColor(0, 0, 0)
 	_ = pdf.SetFontSize(12)
 	pdf.SetX(totalsValueOffset)
-	if label == totalLabel {
+	if label == totalLabel || label == totalToPayLabel {
 		_ = pdf.SetFont("Inter-Bold", "", 11.5)
 	}
-	_ = pdf.Cell(nil, currencySymbol(currency)+strconv.FormatFloat(total, 'f', 2, 64))
+	prefix := ""
+	if negative {
+		prefix = "-"
+	}
+	_ = pdf.Cell(nil, prefix+currencySymbol(currency)+strconv.FormatFloat(total, 'f', 2, 64))
 	pdf.Br(24)
 }
 

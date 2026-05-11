@@ -45,7 +45,8 @@ invoice generate [flags]
 | `--item` / `-i` | Descrição do artigo ou serviço (repetível) |
 | `--quantity` / `-q` | Quantidade (repetível, suporta decimais como `0.25`) |
 | `--rate` / `-r` | Preço unitário (repetível) |
-| `--iva` | Taxa de IVA (ex: `0.23` para 23%) |
+| `--iva` | Taxa de IVA (ex: `0.23` para 23%) — adicionado ao subtotal |
+| `--withholding` | Taxa de retenção na fonte IRS (ex: `0.25` para 25%) — deduzido do total a pagar |
 | `--discount` / `-d` | Desconto (ex: `0.10` para 10%) |
 | `--currency` / `-c` | Moeda (`EUR`, `USD`, `GBP`; predefinição: `EUR`) |
 | `--date` | Data de emissão (predefinição: hoje) |
@@ -178,6 +179,31 @@ Códigos mais comuns:
 | M99 | Não sujeito; não tributado | — |
 
 Para um motivo personalizado em vez de um código AT, utilize `--exemption-reason` e `--legal-reference`.
+
+---
+
+## Retenção na fonte IRS
+
+A retenção na fonte é deduzida do montante que o cliente transfere, ao contrário do IVA que é adicionado. O cálculo aplica-se sempre sobre o subtotal, nunca sobre o IVA.
+
+```
+Subtotal          €1.000,00
+IVA (23%)        +€  230,00
+Retenção IRS (25%) -€ 250,00
+─────────────────────────────
+Total a pagar      €  980,00
+```
+
+A taxa padrão para a maioria dos trabalhadores independentes a faturar a empresas portuguesas é de **25%**. Pode ser omitida ou definida como `0` para:
+- Clientes internacionais (fora de Portugal)
+- Freelancers com rendimento anual abaixo de €14.500 (isenção de retenção)
+
+```bash
+invoice generate \
+  --item "Desenvolvimento web" --quantity 10 --rate 100 \
+  --iva 0.23 --withholding 0.25 \
+  --seller-vat-id PT501234567 --buyer-vat-id PT509876543
+```
 
 ---
 
