@@ -1,5 +1,5 @@
-# Contributing
+# Contribuir
 
-Contributions are welcome!
+Contribuições são bem-vindas!
 
-Please test out changes with various values and combinations before submitting a PR.
+Por favor, teste as alterações com vários valores e combinações antes de submeter um PR.
