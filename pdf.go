@@ -429,8 +429,8 @@ func writeRow(pdf *gopdf.GoPdf, invoice Invoice, i int, item string, quantity, r
 
 // ── Notes section ─────────────────────────────────────────────────────────────
 
-func writeNotes(pdf *gopdf.GoPdf, notes string) {
-	pdf.SetY(582)
+func writeNotes(pdf *gopdf.GoPdf, notes string, startY float64) {
+	pdf.SetY(startY)
 	_ = pdf.SetFont("Inter", "", 7.5)
 	pdf.SetTextColor(lblR, lblG, lblB)
 	_ = pdf.Cell(nil, "OBSERVAÇÕES")
@@ -476,14 +476,9 @@ func writeExemptionReason(pdf *gopdf.GoPdf, code, reason, legalReference string)
 
 // ── Totals card ───────────────────────────────────────────────────────────────
 
-func writeTotals(pdf *gopdf.GoPdf, invoice Invoice, subtotal, tax, discount, taxRate, withholding, withholdingRate, totalQty float64) {
-	const baseY = 580.0
-
-	// Count rows to compute card height before drawing
-	rows := 1 // subtotal always present
-	if invoice.ShowQuantityColumn {
-		rows++
-	}
+func writeTotals(pdf *gopdf.GoPdf, invoice Invoice, subtotal, tax, discount, taxRate, withholding, withholdingRate, startY float64) {
+	// Count rows (excluding quantity — shown separately in the table, not the card).
+	rows := 1 // subtotal
 	if tax > 0 {
 		rows++
 	}
@@ -497,20 +492,21 @@ func writeTotals(pdf *gopdf.GoPdf, invoice Invoice, subtotal, tax, discount, tax
 
 	const cardX = totalsLabelOffset - 12.0
 	const cardW = pageRight - cardX
-	cardH := float64(rows)*26 + 28 // +28 for top/bottom padding + separator
-	cardY := baseY - 10
+	cardH := float64(rows)*28 + 24 // 28pt per row + 24pt padding
+	cardY := startY - 8
 
-	// Card background + border
+	// Card: light background + subtle border
 	pdf.SetFillColor(altR, altG, altB)
 	pdf.SetStrokeColor(divR, divG, divB)
 	pdf.SetLineWidth(0.7)
 	pdf.RectFromUpperLeftWithStyle(cardX, cardY, cardW, cardH, "FD")
 
-	pdf.SetY(baseY)
+	// Blue accent bar on top edge of card
+	pdf.SetFillColor(accR, accG, accB)
+	pdf.RectFromUpperLeftWithStyle(cardX, cardY, cardW, 3, "F")
 
-	if invoice.ShowQuantityColumn {
-		writeQuantityTotal(pdf, totalQty)
-	}
+	pdf.SetY(startY + 4)
+
 	writeTotalLine(pdf, subtotalLabel, subtotal, invoice.Currency, false, false)
 	if tax > 0 {
 		writeTotalLine(pdf, fmt.Sprintf("%s (%.2f%%)", taxLabel, taxRate*100), tax, invoice.Currency, false, false)
@@ -522,8 +518,8 @@ func writeTotals(pdf *gopdf.GoPdf, invoice Invoice, subtotal, tax, discount, tax
 		writeTotalLine(pdf, discountLabel, discount, invoice.Currency, false, false)
 	}
 
-	// Thin separator above grand total
-	sepY := pdf.GetY() + 3
+	// Separator above grand total
+	sepY := pdf.GetY() + 2
 	pdf.SetStrokeColor(divR, divG, divB)
 	pdf.SetLineWidth(0.5)
 	pdf.Line(cardX+10, sepY, pageRight-10, sepY)
@@ -535,7 +531,7 @@ func writeTotals(pdf *gopdf.GoPdf, invoice Invoice, subtotal, tax, discount, tax
 	}
 	writeTotalLine(pdf, finalLabel, subtotal+tax-withholding-discount, invoice.Currency, false, true)
 
-	// Position below card for due date / payment terms
+	// Position cursor below card for due date / payment terms
 	pdf.SetY(cardY + cardH + 8)
 }
 

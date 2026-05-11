@@ -136,9 +136,9 @@ func init() {
 	generateCmd.Flags().Float64SliceVarP(&invoice.Rates, "rate", "r", d.Rates, "Preços unitários")
 	generateCmd.Flags().StringSliceVarP(&quantityInput, "quantity", "q", []string{"1"}, "Quantidades (suporta decimais, ex: 0.25)")
 	generateCmd.Flags().StringSliceVarP(&invoice.Items, "item", "i", d.Items, "Descrição dos artigos/serviços")
-	generateCmd.Flags().StringSliceVar(&invoice.ItemDates, "item-date", nil, "Datas dos artigos")
-	generateCmd.Flags().StringSliceVar(&invoice.ItemTimes, "item-time", nil, "Horas dos artigos (ex: 09:00-17:00)")
-	generateCmd.Flags().StringSliceVar(&invoice.ItemCategories, "item-category", nil, "Categorias/códigos dos artigos")
+	generateCmd.Flags().StringArrayVar(&invoice.ItemDates, "item-date", nil, "Datas dos artigos")
+	generateCmd.Flags().StringArrayVar(&invoice.ItemTimes, "item-time", nil, "Horas dos artigos (ex: 09:00-17:00)")
+	generateCmd.Flags().StringArrayVar(&invoice.ItemCategories, "item-category", nil, "Categorias/códigos dos artigos")
 
 	generateCmd.Flags().StringVarP(&invoice.Logo, "logo", "l", d.Logo, "Logótipo da empresa")
 	generateCmd.Flags().StringVarP(&invoice.From, "from", "f", d.From, "Empresa emissora")
@@ -387,13 +387,19 @@ Exemplos:
 			totalQty += q
 		}
 
+		// Dynamic section Y: follow items closely, but never overlap the info strip.
+		sectionY := pdf.GetY() + 20
+		if sectionY < 490 {
+			sectionY = 490
+		}
+
 		if invoice.ExemptionCode != "" || invoice.ExemptionReason != "" {
 			writeExemptionReason(&pdf, invoice.ExemptionCode, invoice.ExemptionReason, invoice.LegalReference)
 		}
 		if invoice.Note != "" {
-			writeNotes(&pdf, invoice.Note)
+			writeNotes(&pdf, invoice.Note, sectionY)
 		}
-		writeTotals(&pdf, invoice, subtotal, subtotal*invoice.Tax, subtotal*invoice.Discount, invoice.Tax, subtotal*invoice.Withholding, invoice.Withholding, totalQty)
+		writeTotals(&pdf, invoice, subtotal, subtotal*invoice.Tax, subtotal*invoice.Discount, invoice.Tax, subtotal*invoice.Withholding, invoice.Withholding, sectionY)
 		if invoice.Due != "" {
 			writeDueDate(&pdf, invoice.Due)
 		}
