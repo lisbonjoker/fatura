@@ -82,14 +82,15 @@ func invoicePDFPath(inv Invoice) (string, error) {
 }
 
 type InvoiceRecord struct {
-	Id       string  `json:"id"`
-	To       string  `json:"to"`
-	Date     string  `json:"date"`
-	Total    float64 `json:"total"`
-	Currency string  `json:"currency"`
-	PDF      string  `json:"pdf"`
-	Draft    bool    `json:"draft,omitempty"`
-	IssuedAt string  `json:"issued_at"`
+	Id          string  `json:"id"`
+	To          string  `json:"to"`
+	Date        string  `json:"date"`
+	Total       float64 `json:"total"`
+	Currency    string  `json:"currency"`
+	Withholding float64 `json:"withholding,omitempty"`
+	PDF         string  `json:"pdf"`
+	Draft       bool    `json:"draft,omitempty"`
+	IssuedAt    string  `json:"issued_at"`
 }
 
 type SMTPConfig struct {
@@ -168,14 +169,15 @@ func saveToHistory(inv Invoice, pdfPath string, total float64, draft bool) error
 	}
 
 	records = append(records, InvoiceRecord{
-		Id:       inv.Id,
-		To:       inv.To,
-		Date:     inv.Date,
-		Total:    total,
-		Currency: inv.Currency,
-		PDF:      pdfPath,
-		Draft:    draft,
-		IssuedAt: time.Now().Format(time.RFC3339),
+		Id:          inv.Id,
+		To:          inv.To,
+		Date:        inv.Date,
+		Total:       total,
+		Currency:    inv.Currency,
+		Withholding: inv.Withholding,
+		PDF:         pdfPath,
+		Draft:       draft,
+		IssuedAt:    time.Now().Format(time.RFC3339),
 	})
 
 	data, err := json.MarshalIndent(records, "", "  ")
