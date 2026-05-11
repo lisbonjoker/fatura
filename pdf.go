@@ -22,13 +22,13 @@ const (
 // ── Colour palette ────────────────────────────────────────────────────────────
 
 const (
-	hdrR, hdrG, hdrB   = 15, 23, 42      // #0F172A  header band
-	accR, accG, accB   = 59, 130, 246    // #3B82F6  accent blue
-	fillR, fillG, fillB = 241, 245, 249  // #F1F5F9  table header / fiscal row
-	altR, altG, altB   = 248, 250, 252   // #F8FAFC  alternating row / card bg
-	divR, divG, divB   = 226, 232, 240   // #E2E8F0  divider lines
-	lblR, lblG, lblB   = 100, 116, 139   // #64748B  slate label text
-	bdyR, bdyG, bdyB   = 30, 41, 59     // #1E293B  body text
+	hdrR, hdrG, hdrB    = 15, 23, 42    // #0F172A  header band
+	accR, accG, accB    = 59, 130, 246  // #3B82F6  accent blue
+	fillR, fillG, fillB = 241, 245, 249 // #F1F5F9  table header / fiscal row
+	altR, altG, altB    = 248, 250, 252 // #F8FAFC  alternating row / card bg
+	divR, divG, divB    = 226, 232, 240 // #E2E8F0  divider lines
+	lblR, lblG, lblB    = 100, 116, 139 // #64748B  slate label text
+	bdyR, bdyG, bdyB    = 30, 41, 59    // #1E293B  body text
 )
 
 // ── Totals section layout ─────────────────────────────────────────────────────
@@ -63,7 +63,7 @@ const (
 // ── Column layout ─────────────────────────────────────────────────────────────
 
 type colPositions struct {
-	descWidth                                        float64
+	descWidth                                     float64
 	dateX, timeX, categoryX, qtyX, rateX, amountX float64
 }
 

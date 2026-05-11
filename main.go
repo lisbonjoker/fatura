@@ -77,7 +77,7 @@ type Invoice struct {
 	Reference       string  `json:"reference"        yaml:"reference"`
 	ATCUDCode       string  `json:"atcud_code"       yaml:"atcud_code"`
 	PaymentTerms    string  `json:"payment_terms"    yaml:"payment_terms"`
-	Withholding     float64 `json:"withholding"      yaml:"withholding"`
+	Withholding     float64 `json:"withholding"    yaml:"withholding"`
 	Note            string  `json:"note"             yaml:"note"`
 }
 
@@ -129,7 +129,7 @@ func init() {
 	generateCmd.Flags().StringVar(&importPath, "import", "", "Ficheiro importado (.json/.yaml)")
 	generateCmd.Flags().StringVar(&invoice.Id, "id", "", "Número de fatura (gerado automaticamente se omitido)")
 	generateCmd.Flags().StringVar(&invoice.Title, "title", d.Title, "Título")
-	generateCmd.Flags().StringVar(&clientName, "client", "", "Nome do cliente em ~/.fatura/clients/<nome>.yaml")
+	generateCmd.Flags().StringVar(&clientName, "client", "", "Nome do cliente em ~/.invoice/clients/<nome>.yaml")
 	generateCmd.Flags().StringVar(&recurName, "recur", "", "Guardar como modelo recorrente com este nome")
 	generateCmd.Flags().BoolVar(&draft, "draft", false, "Gerar rascunho com marca de água RASCUNHO (não incrementa contador)")
 
@@ -256,23 +256,23 @@ Exemplos:
   fatura show INV-2026-001
   fatura send --to cliente@exemplo.pt --pdf fatura.pdf
 
-Configuração guardada em ~/.fatura/ (histórico, clientes, modelos, SMTP).`,
+Configuração guardada em ~/.invoice/ (histórico, clientes, modelos, SMTP).`,
 }
 
 var generateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Gerar uma fatura em PDF",
 	Long: `Gera um PDF de fatura e guarda-o automaticamente em:
-  ~/.fatura/history/<cliente>/<ano>/<mês>/<id>-<cliente>.pdf
+  ~/.invoice/history/<cliente>/<ano>/<mês>/<id>-<cliente>.pdf
 
 O número de fatura é atribuído automaticamente no formato INV-YYYY-NNN
-(ex: INV-2026-001). O contador anual é guardado em ~/.fatura/counter.json.
+(ex: INV-2026-001). O contador anual é guardado em ~/.invoice/counter.json.
 
 Com --draft, é gerado um rascunho com marca de água "RASCUNHO" sem consumir
 um número do contador.
 
 Configuração de cliente:
-  Guarde dados recorrentes em ~/.fatura/clients/<nome>.yaml e carregue-os
+  Guarde dados recorrentes em ~/.invoice/clients/<nome>.yaml e carregue-os
   com --client <nome>. Os flags da linha de comandos têm sempre precedência.
 
 Isenção de IVA:
@@ -432,7 +432,7 @@ Exemplos:
 			if err := saveRecurringTemplate(recurName, invoice); err != nil {
 				fmt.Fprintf(os.Stderr, "aviso: não foi possível guardar modelo recorrente: %v\n", err)
 			} else {
-				fmt.Printf("Modelo recorrente guardado: ~/.fatura/recurring/%s.yaml\n", recurName)
+				fmt.Printf("Modelo recorrente guardado: ~/.invoice/recurring/%s.yaml\n", recurName)
 			}
 		}
 
@@ -448,7 +448,7 @@ Exemplos:
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "Listar faturas emitidas",
-	Long: `Lista todas as faturas guardadas no histórico (~/.fatura/history.json).
+	Long: `Lista todas as faturas guardadas no histórico (~/.invoice/history.json).
 
 Mostra ID, data, cliente, total e caminho do ficheiro PDF para cada fatura.
 Os rascunhos são assinalados com [rascunho].
@@ -515,9 +515,9 @@ var sendCmd = &cobra.Command{
 	Use:   "send",
 	Short: "Enviar fatura por email",
 	Long: `Envia um PDF de fatura por email utilizando as credenciais SMTP em
-~/.fatura/config.yaml.
+~/.invoice/config.yaml.
 
-Configuração necessária (~/.fatura/config.yaml):
+Configuração necessária (~/.invoice/config.yaml):
   smtp:
     host: smtp.exemplo.pt
     port: 587
