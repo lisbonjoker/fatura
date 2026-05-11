@@ -17,6 +17,10 @@ const (
 	quantityColumnOffset = 410
 	rateColumnOffset     = 450
 	amountColumnOffset   = 510
+
+	// Totals section uses a wider label area to avoid overflow with long labels.
+	totalsLabelOffset = 330
+	totalsValueOffset = 492
 )
 
 const (
@@ -78,11 +82,11 @@ func writeTitle(pdf *gopdf.GoPdf, title, id, date string) {
 func writeDueDate(pdf *gopdf.GoPdf, due string) {
 	_ = pdf.SetFont("Inter", "", 9)
 	pdf.SetTextColor(75, 75, 75)
-	pdf.SetX(rateColumnOffset)
+	pdf.SetX(totalsLabelOffset)
 	_ = pdf.Cell(nil, "Data de Vencimento")
 	pdf.SetTextColor(0, 0, 0)
 	_ = pdf.SetFontSize(11)
-	pdf.SetX(amountColumnOffset - 15)
+	pdf.SetX(totalsValueOffset)
 	_ = pdf.Cell(nil, due)
 	pdf.Br(12)
 }
@@ -90,11 +94,11 @@ func writeDueDate(pdf *gopdf.GoPdf, due string) {
 func writePaymentTerms(pdf *gopdf.GoPdf, terms string) {
 	_ = pdf.SetFont("Inter", "", 9)
 	pdf.SetTextColor(75, 75, 75)
-	pdf.SetX(rateColumnOffset)
+	pdf.SetX(totalsLabelOffset)
 	_ = pdf.Cell(nil, "Condições de Pagamento")
 	pdf.SetTextColor(0, 0, 0)
 	_ = pdf.SetFontSize(11)
-	pdf.SetX(amountColumnOffset - 15)
+	pdf.SetX(totalsValueOffset)
 	_ = pdf.Cell(nil, terms)
 	pdf.Br(12)
 }
@@ -273,11 +277,11 @@ func writeTotals(pdf *gopdf.GoPdf, invoice Invoice, subtotal, tax, discount, tax
 func writeQuantityTotal(pdf *gopdf.GoPdf, totalQty float64) {
 	_ = pdf.SetFont("Inter", "", 9)
 	pdf.SetTextColor(75, 75, 75)
-	pdf.SetX(rateColumnOffset)
+	pdf.SetX(totalsLabelOffset)
 	_ = pdf.Cell(nil, "Total Qtd.")
 	pdf.SetTextColor(0, 0, 0)
 	_ = pdf.SetFontSize(12)
-	pdf.SetX(amountColumnOffset - 15)
+	pdf.SetX(totalsValueOffset)
 	_ = pdf.Cell(nil, formatQuantity(totalQty))
 	pdf.Br(24)
 }
@@ -285,11 +289,11 @@ func writeQuantityTotal(pdf *gopdf.GoPdf, totalQty float64) {
 func writeTotal(pdf *gopdf.GoPdf, label string, total float64, currency string) {
 	_ = pdf.SetFont("Inter", "", 9)
 	pdf.SetTextColor(75, 75, 75)
-	pdf.SetX(rateColumnOffset)
+	pdf.SetX(totalsLabelOffset)
 	_ = pdf.Cell(nil, label)
 	pdf.SetTextColor(0, 0, 0)
 	_ = pdf.SetFontSize(12)
-	pdf.SetX(amountColumnOffset - 15)
+	pdf.SetX(totalsValueOffset)
 	if label == totalLabel {
 		_ = pdf.SetFont("Inter-Bold", "", 11.5)
 	}
