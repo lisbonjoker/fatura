@@ -5,3 +5,4 @@
 *.sh
 !.github/workflows/*.yml
 /invoice
+/fatura
