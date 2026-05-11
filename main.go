@@ -158,6 +158,59 @@ func init() {
 	_ = sendCmd.MarkFlagRequired("pdf")
 
 	rootCmd.AddCommand(generateCmd, listCmd, showCmd, sendCmd)
+
+	// Remove the shell completion command — not needed for end users.
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
+
+	// Replace the built-in help subcommand with a Portuguese version.
+	rootCmd.SetHelpCommand(&cobra.Command{
+		Use:                   "help [comando]",
+		Short:                 "Ajuda sobre qualquer comando",
+		Long:                  `Apresenta informação de ajuda sobre qualquer comando.`,
+		DisableFlagsInUseLine: true,
+		Run: func(c *cobra.Command, args []string) {
+			cmd, _, err := c.Root().Find(args)
+			if cmd == nil || err != nil {
+				c.Printf("Comando desconhecido: %q\n", args)
+			} else {
+				_ = cmd.Help()
+			}
+		},
+	})
+
+	// Portuguese usage template — translates all Cobra section headers.
+	rootCmd.SetUsageTemplate(`Utilização:{{if .Runnable}}
+  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+  {{.CommandPath}} [comando]{{end}}{{if gt (len .Aliases) 0}}
+
+Aliases:
+  {{.NameAndAliases}}{{end}}{{if .HasExample}}
+
+Exemplos:
+{{.Example}}{{end}}{{if .HasAvailableSubCommands}}
+
+Comandos disponíveis:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+Opções:
+{{.LocalFlags.FlagUsages | trimRightSpace}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+Opções globais:
+{{.InheritedFlags.FlagUsages | trimRightSpace}}{{end}}{{if .HasHelpSubCommands}}
+
+Tópicos de ajuda adicionais:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+Utilize "{{.CommandPath}} [comando] --help" para mais informação sobre um comando.{{end}}
+`)
+
+	// Translate the --help flag description on every command.
+	for _, cmd := range []*cobra.Command{rootCmd, generateCmd, listCmd, showCmd, sendCmd} {
+		cmd.InitDefaultHelpFlag()
+		if f := cmd.Flags().Lookup("help"); f != nil {
+			f.Usage = "Mostrar esta ajuda"
+		}
+	}
 }
 
 var rootCmd = &cobra.Command{
