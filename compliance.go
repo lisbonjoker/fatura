@@ -14,118 +14,34 @@ type exemptionPreset struct {
 }
 
 var atExemptionCodes = map[string]exemptionPreset{
-	"M01": {
-		Reason:         "Artigo 16.º, n.º 6 do CIVA",
-		LegalReference: "Artigo 16.º, n.º 6 do Código do IVA",
-	},
-	"M02": {
-		Reason:         "Artigo 6.º do Decreto-Lei n.º 198/90, de 19 de junho",
-		LegalReference: "Decreto-Lei n.º 198/90, de 19 de junho, Artigo 6.º",
-	},
-	"M04": {
-		Reason:         "Isento — Artigo 13.º do CIVA",
-		LegalReference: "Artigo 13.º do Código do IVA",
-	},
-	"M05": {
-		Reason:         "Isento — Artigo 14.º do CIVA",
-		LegalReference: "Artigo 14.º do Código do IVA",
-	},
-	"M06": {
-		Reason:         "Isento — Artigo 15.º do CIVA",
-		LegalReference: "Artigo 15.º do Código do IVA",
-	},
-	"M07": {
-		Reason:         "Isento — Artigo 9.º do CIVA",
-		LegalReference: "Artigo 9.º do Código do IVA",
-	},
-	"M09": {
-		Reason:         "IVA sem direito à dedução",
-		LegalReference: "Artigo 9.º do Código do IVA",
-	},
-	"M10": {
-		Reason:         "Regime de isenção do IVA",
-		LegalReference: "Artigo 53.º do Código do IVA",
-	},
-	"M11": {
-		Reason:         "Regime especial do tabaco",
-		LegalReference: "Decreto-Lei n.º 346/85, de 23 de agosto",
-	},
-	"M12": {
-		Reason:         "Regime da margem de lucro — Agências de Viagens",
-		LegalReference: "Decreto-Lei n.º 221/85, de 3 de julho",
-	},
-	"M13": {
-		Reason:         "Regime da margem de lucro — Bens em segunda mão",
-		LegalReference: "Decreto-Lei n.º 199/96, de 18 de outubro",
-	},
-	"M14": {
-		Reason:         "Regime da margem de lucro — Objetos de arte",
-		LegalReference: "Decreto-Lei n.º 199/96, de 18 de outubro",
-	},
-	"M15": {
-		Reason:         "Regime da margem de lucro — Objetos de coleção e antiguidades",
-		LegalReference: "Decreto-Lei n.º 199/96, de 18 de outubro",
-	},
-	"M19": {
-		Reason:         "Outras isenções",
-		LegalReference: "Código do IVA",
-	},
-	"M20": {
-		Reason:         "Regime forfetário do IVA",
-		LegalReference: "Artigos 59.º a 62.º do Código do IVA",
-	},
-	"M21": {
-		Reason:         "IVA sem direito à dedução",
-		LegalReference: "Artigo 9.º do Código do IVA",
-	},
-	"M25": {
-		Reason:         "Mercadorias em consignação",
-		LegalReference: "Artigo 38.º do Código do IVA",
-	},
-	"M26": {
-		Reason:         "Isenção de IVA com direito de dedução em cabazes alimentares",
-		LegalReference: "Lei n.º 17/2023, de 14 de abril",
-	},
-	"M30": {
-		Reason:         "IVA — Autoliquidação",
-		LegalReference: "Artigo 2.º do Código do IVA",
-	},
-	"M31": {
-		Reason:         "IVA — Autoliquidação",
-		LegalReference: "Artigo 2.º, n.º 1, alínea j) do CIVA",
-	},
-	"M32": {
-		Reason:         "IVA — Autoliquidação",
-		LegalReference: "Artigo 2.º, n.º 1, alínea l) do CIVA",
-	},
-	"M33": {
-		Reason:         "IVA — Autoliquidação",
-		LegalReference: "Artigo 2.º, n.º 1, alínea m) do CIVA",
-	},
-	"M34": {
-		Reason:         "IVA — Autoliquidação",
-		LegalReference: "Artigo 2.º, n.º 1, alínea n) do CIVA",
-	},
-	"M40": {
-		Reason:         "IVA — Autoliquidação",
-		LegalReference: "Artigo 6.º, n.º 6, alínea a) do CIVA, a contrário",
-	},
-	"M41": {
-		Reason:         "IVA — Autoliquidação",
-		LegalReference: "Artigo 8.º, n.º 3 do RITI",
-	},
-	"M42": {
-		Reason:         "IVA — Autoliquidação",
-		LegalReference: "Decreto-Lei n.º 21/2007, de 29 de janeiro",
-	},
-	"M43": {
-		Reason:         "IVA — Autoliquidação",
-		LegalReference: "Decreto-Lei n.º 362/99, de 16 de setembro",
-	},
-	"M99": {
-		Reason:         "Não sujeito ou não tributado",
-		LegalReference: "Código do IVA",
-	},
+	"M01": {Reason: "Não sujeição", LegalReference: "Artigo 16.º, n.º 6 do CIVA"},
+	"M02": {Reason: "Não tributação", LegalReference: "Decreto-Lei n.º 198/90, de 19 de junho, Artigo 6.º"},
+	"M04": {Reason: "Isento", LegalReference: "Artigo 13.º do CIVA"},
+	"M05": {Reason: "Isento", LegalReference: "Artigo 14.º do CIVA"},
+	"M06": {Reason: "Isento", LegalReference: "Artigo 15.º do CIVA"},
+	"M07": {Reason: "Isento", LegalReference: "Artigo 9.º do CIVA"},
+	"M09": {Reason: "Sem direito à dedução", LegalReference: "Artigo 9.º do CIVA"},
+	"M10": {Reason: "Regime de isenção", LegalReference: "Artigo 53.º do CIVA"},
+	"M11": {Reason: "Regime especial do tabaco", LegalReference: "Decreto-Lei n.º 346/85, de 23 de agosto"},
+	"M12": {Reason: "Margem de lucro — Agências de Viagens", LegalReference: "Decreto-Lei n.º 221/85, de 3 de julho"},
+	"M13": {Reason: "Margem de lucro — Bens em segunda mão", LegalReference: "Decreto-Lei n.º 199/96, de 18 de outubro"},
+	"M14": {Reason: "Margem de lucro — Objetos de arte", LegalReference: "Decreto-Lei n.º 199/96, de 18 de outubro"},
+	"M15": {Reason: "Margem de lucro — Objetos de coleção e antiguidades", LegalReference: "Decreto-Lei n.º 199/96, de 18 de outubro"},
+	"M19": {Reason: "Outras isenções", LegalReference: "Código do IVA"},
+	"M20": {Reason: "Regime forfetário", LegalReference: "Artigos 59.º a 62.º do CIVA"},
+	"M21": {Reason: "Sem direito à dedução", LegalReference: "Artigo 9.º do CIVA"},
+	"M25": {Reason: "Mercadorias em consignação", LegalReference: "Artigo 38.º do CIVA"},
+	"M26": {Reason: "Isenção com direito de dedução", LegalReference: "Lei n.º 17/2023, de 14 de abril"},
+	"M30": {Reason: "Autoliquidação", LegalReference: "Artigo 2.º do CIVA"},
+	"M31": {Reason: "Autoliquidação", LegalReference: "Artigo 2.º, n.º 1, alínea j) do CIVA"},
+	"M32": {Reason: "Autoliquidação", LegalReference: "Artigo 2.º, n.º 1, alínea l) do CIVA"},
+	"M33": {Reason: "Autoliquidação", LegalReference: "Artigo 2.º, n.º 1, alínea m) do CIVA"},
+	"M34": {Reason: "Autoliquidação", LegalReference: "Artigo 2.º, n.º 1, alínea n) do CIVA"},
+	"M40": {Reason: "Autoliquidação", LegalReference: "Artigo 6.º, n.º 6, alínea a) do CIVA, a contrário"},
+	"M41": {Reason: "Autoliquidação", LegalReference: "Artigo 8.º, n.º 3 do RITI"},
+	"M42": {Reason: "Autoliquidação", LegalReference: "Decreto-Lei n.º 21/2007, de 29 de janeiro"},
+	"M43": {Reason: "Autoliquidação", LegalReference: "Decreto-Lei n.º 362/99, de 16 de setembro"},
+	"M99": {Reason: "Não sujeito ou não tributado", LegalReference: "Código do IVA"},
 }
 
 func applyExemptionCode(invoice *Invoice) {

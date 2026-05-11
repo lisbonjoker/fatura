@@ -1,172 +1,288 @@
-<img width="1200" alt="Invoice" src="https://github.com/maaslalani/nap/assets/42545625/16dae9d9-390c-49b6-aedd-3f882b17f57b">
+# invoice
 
-# Invoice
+Gerador de faturas portuguesas em linha de comandos. Gera PDFs conformes com os requisitos da Autoridade Tributária (AT), incluindo IVA, isenções, ATCUD e numeração sequencial automática.
 
-Generate invoices from the command line.
+## Instalação
 
-## Command Line Interface
-
-```bash
-invoice generate --from "Dream, Inc." --to "Imagine, Inc." \
-    --item "Rubber Duck" --quantity 0.25 --rate 25 \
-    --item-date "Apr 07, 2026" --item-time "08:32-16:43" \
-    --vat 0.23 --discount 0.15 \
-    --payment-terms "NET 15" \
-    --seller-vat-id "PT501234567" --buyer-vat-id "PT509876543" \
-    --country-code "PT" \
-    --note "For debugging purposes."
+```sh
+go install github.com/lisbonjoker/invoice@latest
 ```
 
-<img src="https://vhs.charm.sh/vhs-66CMd4UQuXkuxX9djHUnGX.gif" width="600" />
-
-View the generated PDF at `invoice.pdf`, you can customize the output location
-with `--output`.
-
-```bash
-open invoice.pdf
-```
-
-<img width="574" alt="Example invoice" src="https://github.com/maaslalani/nap/assets/42545625/13153de2-dfa1-41e6-a18e-4d3a5cea5b74">
-
-### Environment
-
-Save repeated information with environment variables:
-
-```bash
-export INVOICE_LOGO=/path/to/image.png
-export INVOICE_FROM="Dream, Inc."
-export INVOICE_TO="Imagine, Inc."
-export INVOICE_TAX=0.13
-export INVOICE_RATE=25
-```
-
-Generate new invoice:
+## Utilização rápida
 
 ```bash
 invoice generate \
-    --item "Yellow Rubber Duck" --quantity 5 \
-    --item "Special Edition Plaid Rubber Duck" --quantity 1 \
-    --from-line "Dream, Inc." --from-line "123 Main St" --from-line "+1 555 0100" \
-    --to-line "Imagine, Inc." --to-line "500 Elm St" \
-    --item-columns "date,time,category,qty,amount" \
-    --note "For debugging purposes." \
-    --output duck-invoice.pdf
+  --from "A Minha Empresa, Lda.\nRua Exemplo, 1\n1000-001 Lisboa\nNIF: 501234567" \
+  --to "Empresa Cliente, S.A.\nAv. República, 50\n1050-187 Lisboa" \
+  --item "Serviços de consultoria" --quantity 8 --rate 75 \
+  --iva 0.23 \
+  --seller-vat-id "PT501234567" --buyer-vat-id "PT509876543" \
+  --payment-terms "30 dias"
 ```
 
-### Configuration File
-
-Or, save repeated information with JSON / YAML:
-
-```json
-{
-    "logo": "/path/to/image.png",
-    "from": "Dream, Inc.",
-    "to": "Imagine, Inc.",
-    "currency": "EUR",
-    "tax": 0.23,
-    "seller_vat_id": "PT501234567",
-    "buyer_vat_id": "PT509876543",
-    "country_code": "PT",
-    "exemption_reason": "",
-    "legal_reference": "",
-    "items": ["Yellow Rubber Duck", "Special Edition Plaid Rubber Duck"],
-    "quantities": [5, 0.25],
-    "rates": [25, 25],
-    "item_dates": ["Apr 06, 2026", "Apr 07, 2026"],
-    "item_times": ["08:32-16:43", "09:00-10:00"],
-    "item_categories": ["Support", "Project 1102"],
-    "item_columns": "date,time,category,qty,amount",
-    "payment_terms": "NET 15"
-}
-```
-
-Generate new invoice by importing the configuration file:
-
-```bash
-invoice generate --import path/to/data.json \
-    --output duck-invoice.pdf
-```
-
-### Portuguese / EU VAT fields
-
-For Portuguese and EU compliance workflows, include these flags/fields:
-
-* `--seller-vat-id` / `seller_vat_id`
-* `--buyer-vat-id` / `buyer_vat_id`
-* `--country-code` / `country_code`
-* `--vat` (alias for `--tax`)
-* `--exemption-reason` / `exemption_reason` when VAT is exempt
-* `--legal-reference` / `legal_reference`
-* `--pt-exemption` shortcut values: `e_learning`, `gambling`, `insurance_financial`
-
-When `country_code` is `PT`, the CLI now validates key Portuguese invoice requirements:
-required supplier/recipient details and VAT IDs, VAT exemption reason + legal reference
-when VAT is zero.
-
-### Electronic Invoicing in Portugal (reference notes)
-
-* **Authorities and model**: Portugal uses a centralized public e-invoicing model coordinated by **eSPAP** for interoperability in exchanges with public administrations. Tax oversight is handled by the **Autoridade Tributária e Aduaneira (AT)**.
-* **Mandatory scope**:
-  * **B2G** (supplier to public administration): mandatory electronic invoicing.
-  * **B2B** (private company to private company): optional adoption.
-* **Accepted B2G formats**:
-  * **UBL 2.1 CIUS-PT**
-  * **CEFACT CIUS-PT**
-  These are XML-based and adapted to Portuguese national interoperability requirements.
-* **Electronic signature**: mandatory for invoices sent to public administrations, using a qualified digital certificate from a recognized certification authority under **eIDAS (Regulation (EU) No. 910/2014)**.
-* **Archiving**: issuer and recipient must retain electronic invoices for at least **10 years** while preserving integrity, authenticity, and accessibility.
-* **Administrative onboarding**:
-  * Suppliers using entities integrated with eSPAP must register and pass interoperability tests.
-  * For public entities outside eSPAP integration, suppliers must connect to each entity's specific portal requirements.
-
-### Custom Templates
-
-If you would like a custom invoice template for your business or company, please
-reach out via:
-
-* [Email](mailto:maas@lalani.dev)
-* [Twitter](https://twitter.com/maaslalani)
-
-## Installation
-
-<!--
-
-Use a package manager:
-
-```bash
-# macOS
-brew install invoice
-
-# Arch
-yay -S invoice
-
-# Nix
-nix-env -iA nixpkgs.invoice
-```
-
--->
-
-Install with Go:
-
-```sh
-go install github.com/maaslalani/invoice@main
-```
-
-Or download a binary from the [releases](https://github.com/maaslalani/invoice/releases).
-
-## License
-
-[MIT](https://github.com/maaslalani/invoice/blob/master/LICENSE)
-
-## Feedback
-
-I'd love to hear your feedback on improving `invoice`.
-
-Feel free to reach out via:
-* [Email](mailto:maas@lalani.dev)
-* [Twitter](https://twitter.com/maaslalani)
-* [GitHub issues](https://github.com/maaslalani/invoice/issues/new)
+O PDF é guardado automaticamente em `~/.invoice/history/<cliente>/<ano>/<mês>/<id>-<cliente>.pdf`.
 
 ---
 
-<sub><sub>z</sub></sub><sub>z</sub>z
+## Comandos
+
+### `invoice generate`
+
+Gera um PDF de fatura e guarda-o no histórico.
+
+```
+invoice generate [flags]
+```
+
+**Flags principais:**
+
+| Flag | Descrição |
+|------|-----------|
+| `--from` | Nome e morada do emitente |
+| `--to` | Nome e morada do destinatário |
+| `--from-line` | Linha do emitente (repetível, alternativa a `--from`) |
+| `--to-line` | Linha do destinatário (repetível) |
+| `--item` / `-i` | Descrição do artigo ou serviço (repetível) |
+| `--quantity` / `-q` | Quantidade (repetível, suporta decimais como `0.25`) |
+| `--rate` / `-r` | Preço unitário (repetível) |
+| `--iva` | Taxa de IVA (ex: `0.23` para 23%) |
+| `--discount` / `-d` | Desconto (ex: `0.10` para 10%) |
+| `--currency` / `-c` | Moeda (`EUR`, `USD`, `GBP`; predefinição: `EUR`) |
+| `--date` | Data de emissão (predefinição: hoje) |
+| `--due` | Data de vencimento (predefinição: 30 dias) |
+| `--seller-vat-id` | NIF do fornecedor (ex: `PT501234567`) |
+| `--buyer-vat-id` | NIF do cliente |
+| `--exemption` | Código de isenção AT (ex: `M07`, `M09`) |
+| `--reference` | Referência de encomenda/PO (ex: `PO-2026-001`) |
+| `--atcud-code` | Código de validação ATCUD (obtido no portal AT) |
+| `--payment-terms` | Condições de pagamento (ex: `30 dias`) |
+| `--note` / `-n` | Observações no rodapé |
+| `--logo` / `-l` | Caminho para o logótipo (PNG/JPG) |
+| `--id` | Número de fatura manual (gerado automaticamente se omitido) |
+| `--draft` | Gerar rascunho com marca de água (não incrementa contador) |
+| `--client` | Carregar configuração de cliente em `~/.invoice/clients/<nome>.yaml` |
+| `--recur` | Guardar como modelo recorrente com este nome |
+| `--item-columns` | Colunas da tabela: `date,time,category,qty,rate,amount` |
+| `--item-date` | Data por artigo (repetível) |
+| `--item-time` | Hora por artigo, ex: `09:00-17:00` (repetível) |
+| `--item-category` | Categoria/código por artigo (repetível) |
+| `--output` / `-o` | Caminho de saída do PDF (substitui o caminho automático) |
+| `--import` | Importar dados de ficheiro `.json` ou `.yaml` |
+| `--title` | Título do documento (predefinição: `FATURA`) |
+
+**Numeração automática:** Cada fatura recebe um número sequencial no formato `INV-YYYY-NNN` (ex: `INV-2026-001`). O contador é guardado em `~/.invoice/counter.json` por ano.
+
+**Rascunho:** Com `--draft`, é gerado um PDF com marca de água `RASCUNHO`. O número não é consumido do contador.
+
+---
+
+### `invoice list`
+
+Lista todas as faturas emitidas.
+
+```bash
+invoice list
+```
+
+Mostra ID, data, cliente, total e caminho do PDF para cada fatura no histórico.
+
+---
+
+### `invoice show <id>`
+
+Mostra os detalhes de uma fatura pelo seu ID.
+
+```bash
+invoice show INV-2026-001
+```
+
+---
+
+### `invoice send`
+
+Envia uma fatura por email (requer SMTP configurado).
+
+```bash
+invoice send --to cliente@exemplo.pt --pdf caminho/para/fatura.pdf
+invoice send --to cliente@exemplo.pt --pdf fatura.pdf --subject "Fatura INV-2026-001"
+```
+
+---
+
+## Configuração de clientes
+
+Guarde as configurações recorrentes de um cliente em `~/.invoice/clients/<nome>.yaml`:
+
+```yaml
+# ~/.invoice/clients/empresa-xpto.yaml
+to: "Empresa XPTO, S.A.\nRua das Flores, 10\n4000-001 Porto"
+buyer_vat_id: "PT509876543"
+payment_terms: "30 dias"
+currency: EUR
+```
+
+Utilizar o cliente guardado:
+
+```bash
+invoice generate --client empresa-xpto \
+  --item "Desenvolvimento de software" --quantity 20 --rate 90 \
+  --iva 0.23
+```
+
+---
+
+## Modelos recorrentes
+
+Guarde uma fatura como modelo para reutilização futura:
+
+```bash
+invoice generate --client empresa-xpto \
+  --item "Manutenção mensal" --rate 500 \
+  --iva 0.23 \
+  --recur manutencao-mensal
+```
+
+Reutilizar o modelo no mês seguinte:
+
+```bash
+invoice generate --import ~/.invoice/recurring/manutencao-mensal.yaml
+```
+
+---
+
+## Isenção de IVA
+
+Quando o IVA é zero, utilize `--exemption` com o código AT correspondente:
+
+```bash
+invoice generate \
+  --item "Formação profissional" --rate 1200 \
+  --exemption M09
+```
+
+Códigos mais comuns:
+
+| Código | Motivo | Referência Legal |
+|--------|--------|-----------------|
+| M01 | Artigo 16.º n.º 6 do CIVA | Art. 16.º n.º 6 CIVA |
+| M02 | Artigo 6.º do Decreto‑Lei n.º 198/90 | DL n.º 198/90 |
+| M04 | Isento — Artigo 13.º do CIVA | Art. 13.º CIVA |
+| M05 | Isento — Artigo 14.º do CIVA | Art. 14.º CIVA |
+| M06 | Isento — Artigo 15.º do CIVA | Art. 15.º CIVA |
+| M07 | Isento — Artigo 9.º do CIVA | Art. 9.º CIVA |
+| M09 | IVA — Não confere direito a dedução | Art. 62.º alínea b) CIVA |
+| M10 | IVA — Regime de isenção | Art. 57.º CIVA |
+| M16 | Isento — Artigo 14.º do RITI | Art. 14.º RITI |
+| M19 | Outras isenções | Isenções definitivas |
+| M20 | IVA — Regime forfetário | Art. 59.º-D n.º 2 CIVA |
+| M99 | Não sujeito; não tributado | — |
+
+Para um motivo personalizado em vez de um código AT, utilize `--exemption-reason` e `--legal-reference`.
+
+---
+
+## ATCUD
+
+O ATCUD é obrigatório para faturas emitidas por software certificado pela AT. Obtenha o código de validação no portal AT e indique-o com `--atcud-code`:
+
+```bash
+invoice generate \
+  --atcud-code "CSDF7T5V" \
+  --item "Consultoria" --rate 500 \
+  --iva 0.23
+```
+
+O ATCUD será apresentado na fatura como `CSDF7T5V-001` (código de validação + número sequencial).
+
+---
+
+## Configuração SMTP (envio de email)
+
+Crie o ficheiro `~/.invoice/config.yaml`:
+
+```yaml
+smtp:
+  host: smtp.exemplo.pt
+  port: 587        # 587 para STARTTLS, 465 para TLS implícito
+  user: utilizador@exemplo.pt
+  password: palavra-passe
+  from: A Minha Empresa <faturacao@exemplo.pt>
+```
+
+Enviar uma fatura:
+
+```bash
+invoice send \
+  --to cliente@exemplo.pt \
+  --pdf ~/.invoice/history/empresa-cliente/2026/05/INV-2026-001-empresa-cliente.pdf \
+  --subject "Fatura INV-2026-001 — Maio 2026"
+```
+
+---
+
+## Estrutura de ficheiros
+
+```
+~/.invoice/
+├── config.yaml              # Configuração SMTP e global
+├── counter.json             # Contadores de numeração por ano
+├── history.json             # Histórico de faturas emitidas
+├── clients/
+│   └── empresa-xpto.yaml   # Configuração por cliente
+├── recurring/
+│   └── manutencao-mensal.yaml  # Modelos recorrentes
+└── history/
+    └── empresa-xpto/
+        └── 2026/
+            └── 05/
+                └── INV-2026-001-empresa-xpto.pdf
+```
+
+---
+
+## Importar de ficheiro
+
+Pode definir todos os campos num ficheiro `.json` ou `.yaml` e importar com `--import`. Os flags da linha de comandos têm precedência sobre os valores do ficheiro.
+
+```yaml
+# fatura.yaml
+from: "A Minha Empresa, Lda.\nRua Exemplo, 1\n1000-001 Lisboa"
+to: "Empresa Cliente, S.A."
+seller_vat_id: "PT501234567"
+buyer_vat_id: "PT509876543"
+items:
+  - "Desenvolvimento de aplicação web"
+  - "Reuniões de acompanhamento"
+quantities:
+  - 40
+  - 4
+rates:
+  - 90
+  - 90
+tax: 0.23
+currency: EUR
+payment_terms: "30 dias"
+item_columns: "qty,rate,amount"
+```
+
+```bash
+invoice generate --import fatura.yaml --note "Referente ao mês de maio de 2026."
+```
+
+---
+
+## Variáveis de ambiente
+
+Todas as flags também podem ser definidas por variáveis de ambiente com o prefixo `INVOICE_`:
+
+```bash
+export INVOICE_FROM="A Minha Empresa, Lda."
+export INVOICE_SELLER_VAT_ID="PT501234567"
+export INVOICE_IVA=0.23
+```
+
+---
+
+## Licença
+
+[MIT](./LICENSE)

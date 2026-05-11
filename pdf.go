@@ -62,7 +62,7 @@ func writeLogo(pdf *gopdf.GoPdf, logo string, from string) {
 	pdf.Br(36)
 }
 
-func writeTitle(pdf *gopdf.GoPdf, title, id, date string) {
+func writeTitle(pdf *gopdf.GoPdf, title, id, date, atcud string) {
 	_ = pdf.SetFont("Inter-Bold", "", 24)
 	pdf.SetTextColor(0, 0, 0)
 	_ = pdf.Cell(nil, title)
@@ -76,7 +76,23 @@ func writeTitle(pdf *gopdf.GoPdf, title, id, date string) {
 	pdf.SetTextColor(100, 100, 100)
 	_ = pdf.Cell(nil, "Data: ")
 	_ = pdf.Cell(nil, date)
-	pdf.Br(48)
+	pdf.Br(20)
+	if atcud != "" {
+		_ = pdf.SetFont("Inter", "", 9)
+		pdf.SetTextColor(120, 120, 120)
+		_ = pdf.Cell(nil, "ATCUD: "+atcud)
+		pdf.Br(28)
+	} else {
+		pdf.Br(28)
+	}
+}
+
+func writeDraftWatermark(pdf *gopdf.GoPdf) {
+	_ = pdf.SetFont("Inter-Bold", "", 72)
+	pdf.SetTextColor(220, 220, 220)
+	pdf.SetXY(95, 330)
+	_ = pdf.Cell(nil, "RASCUNHO")
+	pdf.SetTextColor(0, 0, 0)
 }
 
 func writeDueDate(pdf *gopdf.GoPdf, due string) {
@@ -205,22 +221,18 @@ func writeExemptionReason(pdf *gopdf.GoPdf, code, reason, legalReference string)
 	pdf.SetTextColor(55, 55, 55)
 	_ = pdf.Cell(nil, "MOTIVO DE ISENÇÃO DE IVA")
 	pdf.Br(18)
-	if code != "" {
-		_ = pdf.SetFont("Inter-Bold", "", 9.5)
-		pdf.SetTextColor(0, 0, 0)
-		_ = pdf.Cell(nil, code)
-		if reason != "" {
-			_ = pdf.SetFont("Inter", "", 9.5)
-			pdf.SetTextColor(55, 55, 55)
-			_ = pdf.Cell(nil, "  —  "+reason)
+	_ = pdf.SetFont("Inter", "", 9.5)
+	pdf.SetTextColor(0, 0, 0)
+	line := code
+	if reason != "" {
+		if line != "" {
+			line += " - " + reason
+		} else {
+			line = reason
 		}
-		pdf.Br(14)
-	} else if reason != "" {
-		_ = pdf.SetFont("Inter", "", 9)
-		pdf.SetTextColor(0, 0, 0)
-		_ = pdf.Cell(nil, reason)
-		pdf.Br(14)
 	}
+	_ = pdf.Cell(nil, line)
+	pdf.Br(14)
 	if legalReference != "" {
 		_ = pdf.SetFont("Inter", "", 8.5)
 		pdf.SetTextColor(75, 75, 75)
