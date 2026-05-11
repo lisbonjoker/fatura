@@ -270,7 +270,17 @@ var generateCmd = &cobra.Command{
 		}
 		writeFooter(&pdf, invoice.Id)
 
-		output = strings.TrimSuffix(output, ".pdf") + ".pdf"
+		// Use auto path unless --output was explicitly provided.
+		if !cmd.Flags().Changed("output") {
+			autoPath, err := invoicePDFPath(invoice)
+			if err != nil {
+				return err
+			}
+			output = autoPath
+		} else {
+			output = strings.TrimSuffix(output, ".pdf") + ".pdf"
+		}
+
 		if err := pdf.WritePdf(output); err != nil {
 			return err
 		}

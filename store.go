@@ -5,10 +5,81 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
 )
+
+// ptReplacer normalises Portuguese characters to ASCII for safe directory names.
+var ptReplacer = strings.NewReplacer(
+	"ã", "a", "â", "a", "á", "a", "à", "a", "ä", "a",
+	"ç", "c",
+	"é", "e", "ê", "e", "è", "e", "ë", "e",
+	"í", "i", "î", "i", "ì", "i", "ï", "i",
+	"ó", "o", "ô", "o", "õ", "o", "ò", "o", "ö", "o",
+	"ú", "u", "û", "u", "ù", "u", "ü", "u",
+	"ñ", "n",
+	"Ã", "a", "Â", "a", "Á", "a", "À", "a",
+	"Ç", "c",
+	"É", "e", "Ê", "e", "È", "e",
+	"Í", "i", "Î", "i",
+	"Ó", "o", "Ô", "o", "Õ", "o",
+	"Ú", "u", "Û", "u",
+)
+
+func sanitizeName(s string) string {
+	s = ptReplacer.Replace(s)
+	s = strings.ToLower(s)
+	var b strings.Builder
+	prev := rune('-')
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			prev = r
+		} else if prev != '-' {
+			b.WriteRune('-')
+			prev = '-'
+		}
+	}
+	result := strings.Trim(b.String(), "-")
+	if len(result) > 40 {
+		result = result[:40]
+	}
+	return result
+}
+
+// invoicePDFPath returns ~/.invoice/history/<client>/<year>/<month>/<id>-<client>.pdf
+func invoicePDFPath(inv Invoice) (string, error) {
+	dir, err := invoiceConfigDir()
+	if err != nil {
+		return "", err
+	}
+
+	clientRaw := inv.To
+	if idx := strings.Index(clientRaw, "\n"); idx != -1 {
+		clientRaw = clientRaw[:idx]
+	}
+	client := sanitizeName(strings.TrimSpace(clientRaw))
+	if client == "" {
+		client = "sem-cliente"
+	}
+
+	t, err := time.Parse("Jan 02, 2006", inv.Date)
+	if err != nil {
+		t = time.Now()
+	}
+
+	pdfDir := filepath.Join(dir, "history", client,
+		fmt.Sprintf("%d", t.Year()),
+		fmt.Sprintf("%02d", int(t.Month())))
+	if err := os.MkdirAll(pdfDir, 0755); err != nil {
+		return "", err
+	}
+
+	filename := inv.Id + "-" + client + ".pdf"
+	return filepath.Join(pdfDir, filename), nil
+}
 
 type InvoiceRecord struct {
 	Id       string  `json:"id"`
