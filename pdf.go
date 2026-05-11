@@ -11,17 +11,101 @@ import (
 )
 
 const (
-	dateColumnOffset     = 230
-	timeColumnOffset     = 295
-	categoryColumnOffset = 360
-	quantityColumnOffset = 410
-	rateColumnOffset     = 450
-	amountColumnOffset   = 510
-
 	// Totals section uses a wider label area to avoid overflow with long labels.
 	totalsLabelOffset = 330
 	totalsValueOffset = 492
+
+	// Fixed widths for each optional column.
+	colWidthDate     = 65.0
+	colWidthTime     = 60.0
+	colWidthCategory = 90.0
+	colWidthQty      = 38.0
+	colWidthRate     = 60.0
+	colWidthAmount   = 60.0
+
+	pageLeft  = 40.0
+	pageRight = 555.0
 )
+
+// colPositions holds the computed X position for each active column.
+type colPositions struct {
+	descWidth                                     float64
+	dateX, timeX, categoryX, qtyX, rateX, amountX float64
+}
+
+// computeColPositions assigns X positions dynamically based on which columns
+// are active, so unused columns do not leave dead space.
+func computeColPositions(inv Invoice) colPositions {
+	used := 0.0
+	if inv.ShowDateColumn {
+		used += colWidthDate
+	}
+	if inv.ShowTimeColumn {
+		used += colWidthTime
+	}
+	if inv.ShowCategoryColumn {
+		used += colWidthCategory
+	}
+	if inv.ShowQuantityColumn {
+		used += colWidthQty
+	}
+	if inv.ShowRateColumn {
+		used += colWidthRate
+	}
+	if inv.ShowAmountColumn {
+		used += colWidthAmount
+	}
+
+	descWidth := pageRight - pageLeft - used
+	if descWidth < 100 {
+		descWidth = 100
+	}
+
+	x := pageLeft + descWidth
+	p := colPositions{descWidth: descWidth}
+	if inv.ShowDateColumn {
+		p.dateX = x
+		x += colWidthDate
+	}
+	if inv.ShowTimeColumn {
+		p.timeX = x
+		x += colWidthTime
+	}
+	if inv.ShowCategoryColumn {
+		p.categoryX = x
+		x += colWidthCategory
+	}
+	if inv.ShowQuantityColumn {
+		p.qtyX = x
+		x += colWidthQty
+	}
+	if inv.ShowRateColumn {
+		p.rateX = x
+		x += colWidthRate
+	}
+	if inv.ShowAmountColumn {
+		p.amountX = x
+	}
+	return p
+}
+
+// truncateToWidth shortens text with an ellipsis if it exceeds maxWidth points.
+func truncateToWidth(pdf *gopdf.GoPdf, text string, maxWidth float64) string {
+	w, _ := pdf.MeasureTextWidth(text)
+	if w <= maxWidth {
+		return text
+	}
+	runes := []rune(text)
+	for len(runes) > 0 {
+		runes = runes[:len(runes)-1]
+		candidate := string(runes) + "…"
+		w, _ = pdf.MeasureTextWidth(candidate)
+		if w <= maxWidth {
+			return candidate
+		}
+	}
+	return "…"
+}
 
 const (
 	subtotalLabel    = "Subtotal"
@@ -170,32 +254,32 @@ func writeRegulatoryDetails(pdf *gopdf.GoPdf, invoice Invoice) {
 	pdf.Br(20)
 }
 
-func writeHeaderRow(pdf *gopdf.GoPdf, invoice Invoice) {
+func writeHeaderRow(pdf *gopdf.GoPdf, invoice Invoice, cols colPositions) {
 	_ = pdf.SetFont("Inter", "", 9)
 	pdf.SetTextColor(55, 55, 55)
 	_ = pdf.Cell(nil, "DESCRIÇÃO")
 	if invoice.ShowDateColumn {
-		pdf.SetX(dateColumnOffset)
+		pdf.SetX(cols.dateX)
 		_ = pdf.Cell(nil, "DATA")
 	}
 	if invoice.ShowTimeColumn {
-		pdf.SetX(timeColumnOffset)
+		pdf.SetX(cols.timeX)
 		_ = pdf.Cell(nil, "HORA")
 	}
 	if invoice.ShowCategoryColumn {
-		pdf.SetX(categoryColumnOffset)
+		pdf.SetX(cols.categoryX)
 		_ = pdf.Cell(nil, "CATEGORIA")
 	}
 	if invoice.ShowQuantityColumn {
-		pdf.SetX(quantityColumnOffset)
+		pdf.SetX(cols.qtyX)
 		_ = pdf.Cell(nil, "QTD.")
 	}
 	if invoice.ShowRateColumn {
-		pdf.SetX(rateColumnOffset)
+		pdf.SetX(cols.rateX)
 		_ = pdf.Cell(nil, "PREÇO UN.")
 	}
 	if invoice.ShowAmountColumn {
-		pdf.SetX(amountColumnOffset)
+		pdf.SetX(cols.amountX)
 		_ = pdf.Cell(nil, "MONTANTE")
 	}
 	pdf.Br(24)
@@ -278,36 +362,36 @@ func writeFooter(pdf *gopdf.GoPdf, id string) {
 	pdf.Br(48)
 }
 
-func writeRow(pdf *gopdf.GoPdf, invoice Invoice, i int, item string, quantity float64, rate float64) {
+func writeRow(pdf *gopdf.GoPdf, invoice Invoice, i int, item string, quantity, rate float64, cols colPositions) {
 	_ = pdf.SetFont("Inter", "", 11)
 	pdf.SetTextColor(0, 0, 0)
 
 	sym := currencySymbol(invoice.Currency)
 	amount := strconv.FormatFloat(quantity*rate, 'f', 2, 64)
 
-	_ = pdf.Cell(nil, item)
+	_ = pdf.Cell(nil, truncateToWidth(pdf, item, cols.descWidth-5))
 	if invoice.ShowDateColumn {
-		pdf.SetX(dateColumnOffset)
+		pdf.SetX(cols.dateX)
 		_ = pdf.Cell(nil, getSliceValue(invoice.ItemDates, i))
 	}
 	if invoice.ShowTimeColumn {
-		pdf.SetX(timeColumnOffset)
+		pdf.SetX(cols.timeX)
 		_ = pdf.Cell(nil, getSliceValue(invoice.ItemTimes, i))
 	}
 	if invoice.ShowCategoryColumn {
-		pdf.SetX(categoryColumnOffset)
-		_ = pdf.Cell(nil, getSliceValue(invoice.ItemCategories, i))
+		pdf.SetX(cols.categoryX)
+		_ = pdf.Cell(nil, truncateToWidth(pdf, getSliceValue(invoice.ItemCategories, i), colWidthCategory-5))
 	}
 	if invoice.ShowQuantityColumn {
-		pdf.SetX(quantityColumnOffset)
+		pdf.SetX(cols.qtyX)
 		_ = pdf.Cell(nil, formatQuantity(quantity))
 	}
 	if invoice.ShowRateColumn {
-		pdf.SetX(rateColumnOffset)
+		pdf.SetX(cols.rateX)
 		_ = pdf.Cell(nil, sym+strconv.FormatFloat(rate, 'f', 2, 64))
 	}
 	if invoice.ShowAmountColumn {
-		pdf.SetX(amountColumnOffset)
+		pdf.SetX(cols.amountX)
 		_ = pdf.Cell(nil, sym+amount)
 	}
 	pdf.Br(24)

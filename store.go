@@ -56,7 +56,7 @@ func invoicePDFPath(inv Invoice) (string, error) {
 		return "", err
 	}
 
-	clientRaw := inv.To
+	clientRaw := strings.ReplaceAll(inv.To, `\n`, "\n")
 	if idx := strings.Index(clientRaw, "\n"); idx != -1 {
 		clientRaw = clientRaw[:idx]
 	}

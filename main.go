@@ -370,7 +370,8 @@ Exemplos:
 		writeTitle(&pdf, invoice.Title, invoice.Id, invoice.Date, atcud)
 		writeBillTo(&pdf, invoice.To)
 		writeRegulatoryDetails(&pdf, invoice)
-		writeHeaderRow(&pdf, invoice)
+		cols := computeColPositions(invoice)
+		writeHeaderRow(&pdf, invoice, cols)
 
 		subtotal := 0.0
 		totalQty := 0.0
@@ -383,7 +384,7 @@ Exemplos:
 			if i < len(invoice.Rates) {
 				r = invoice.Rates[i]
 			}
-			writeRow(&pdf, invoice, i, invoice.Items[i], q, r)
+			writeRow(&pdf, invoice, i, invoice.Items[i], q, r, cols)
 			subtotal += q * r
 			totalQty += q
 		}
