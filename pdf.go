@@ -19,8 +19,6 @@ package main
 
 import (
 	"fmt"
-	"image"
-	"os"
 	"strconv"
 	"strings"
 
@@ -200,29 +198,11 @@ func rightAlignedCell(pdf *gopdf.GoPdf, text string, rightX float64) {
 func writeHeader(pdf *gopdf.GoPdf, invoice Invoice, atcud string) {
 	const stripY = 36.0
 
-	// Left badge: "FT-2026/042" in mono
-	pdf.SetXY(pageLeft, stripY)
-	_ = pdf.SetFont("Mono-B", "", 11)
-	pdf.SetTextColor(inkR, inkG, inkB)
-	badge := buildBadge(invoice.Id)
-	_ = pdf.Cell(nil, badge)
-
-	// Logo (if present) lives in the badge column below
-	if invoice.Logo != "" {
-		iw, ih := getImageDimension(invoice.Logo)
-		if iw > 0 && ih > 0 {
-			scaledH := 22.0
-			scaledW := float64(iw) * scaledH / float64(ih)
-			_ = pdf.Image(invoice.Logo, pageLeft, stripY+16, &gopdf.Rect{W: scaledW, H: scaledH})
-		}
-	}
-
-	// Centre-left: doc type + accent dot
-	const docX = pageLeft + 110.0
+	// Left: orange accent dot + spaced title
 	pdf.SetFillColor(accR, accG, accB)
-	pdf.RectFromUpperLeftWithStyle(docX, stripY+3, 8, 8, "F")
+	pdf.RectFromUpperLeftWithStyle(pageLeft, stripY+3, 8, 8, "F")
 
-	pdf.SetXY(docX+14, stripY)
+	pdf.SetXY(pageLeft+14, stripY)
 	_ = pdf.SetFont("Sans-B", "", 11)
 	pdf.SetTextColor(inkR, inkG, inkB)
 	title := strings.ToUpper(invoice.Title)
@@ -231,24 +211,23 @@ func writeHeader(pdf *gopdf.GoPdf, invoice Invoice, atcud string) {
 	}
 	_ = pdf.Cell(nil, expandLetterSpacing(title))
 
-	pdf.SetXY(docX+14, stripY+16)
-	_ = pdf.SetFont("Sans", "", 8.5)
-	pdf.SetTextColor(lblR, lblG, lblB)
-	_ = pdf.Cell(nil, "Documento conforme à AT")
+	// ATCUD column + compliance label — only rendered when a code is provided
+	if atcud != "" {
+		const atcudX = 360.0
+		pdf.SetXY(atcudX, stripY)
+		_ = pdf.SetFont("Mono", "", 8)
+		pdf.SetTextColor(lblR, lblG, lblB)
+		_ = pdf.Cell(nil, "ATCUD")
+		pdf.SetXY(atcudX, stripY+14)
+		_ = pdf.SetFont("Mono-B", "", 10)
+		pdf.SetTextColor(inkR, inkG, inkB)
+		_ = pdf.Cell(nil, atcud)
 
-	// ATCUD column (right-of-centre)
-	const atcudX = 360.0
-	pdf.SetXY(atcudX, stripY)
-	_ = pdf.SetFont("Mono", "", 8)
-	pdf.SetTextColor(lblR, lblG, lblB)
-	_ = pdf.Cell(nil, "ATCUD")
-	pdf.SetXY(atcudX, stripY+14)
-	_ = pdf.SetFont("Mono-B", "", 10)
-	pdf.SetTextColor(inkR, inkG, inkB)
-	if atcud == "" {
-		atcud = "—"
+		pdf.SetXY(pageLeft+14, stripY+16)
+		_ = pdf.SetFont("Sans", "", 8.5)
+		pdf.SetTextColor(lblR, lblG, lblB)
+		_ = pdf.Cell(nil, "Documento conforme à AT")
 	}
-	_ = pdf.Cell(nil, atcud)
 
 	// Right column: reference (or date if no reference)
 	pdf.SetXY(0, stripY)
@@ -274,18 +253,7 @@ func writeHeader(pdf *gopdf.GoPdf, invoice Invoice, atcud string) {
 	pdf.SetXY(pageLeft, ruleY+4)
 }
 
-// buildBadge formats "INV-2026-042" as "FT-2026/042" for the badge.
-// Other id formats pass through unchanged.
-func buildBadge(id string) string {
-	parts := strings.Split(id, "-")
-	if len(parts) >= 3 && parts[0] == "INV" {
-		return "FT-" + parts[1] + "/" + parts[2]
-	}
-	return id
-}
-
 // expandLetterSpacing inserts a hair space between letters for a wide cap effect.
-// gopdf doesn't expose tracking, so we approximate.
 func expandLetterSpacing(s string) string {
 	var b strings.Builder
 	runes := []rune(s)
@@ -725,21 +693,6 @@ func writeFooter(pdf *gopdf.GoPdf, id string) {
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
-
-func getImageDimension(imagePath string) (int, int) {
-	f, err := os.Open(imagePath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		return 0, 0
-	}
-	defer f.Close()
-	img, _, err := image.DecodeConfig(f)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s: %v\n", imagePath, err)
-		return 0, 0
-	}
-	return img.Width, img.Height
-}
 
 func getSliceValue(values []string, index int) string {
 	if index < len(values) {
