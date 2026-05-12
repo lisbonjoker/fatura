@@ -198,7 +198,20 @@ func rightAlignedCell(pdf *gopdf.GoPdf, text string, rightX float64) {
 func writeHeader(pdf *gopdf.GoPdf, invoice Invoice, atcud string) {
 	const stripY = 36.0
 
-	// ATCUD column — only rendered when a code is provided
+	// Left: orange accent dot + spaced title
+	pdf.SetFillColor(accR, accG, accB)
+	pdf.RectFromUpperLeftWithStyle(pageLeft, stripY+3, 8, 8, "F")
+
+	pdf.SetXY(pageLeft+14, stripY)
+	_ = pdf.SetFont("Sans-B", "", 11)
+	pdf.SetTextColor(inkR, inkG, inkB)
+	title := strings.ToUpper(invoice.Title)
+	if title == "" {
+		title = "FATURA"
+	}
+	_ = pdf.Cell(nil, expandLetterSpacing(title))
+
+	// ATCUD column + compliance label — only rendered when a code is provided
 	if atcud != "" {
 		const atcudX = 360.0
 		pdf.SetXY(atcudX, stripY)
@@ -210,7 +223,7 @@ func writeHeader(pdf *gopdf.GoPdf, invoice Invoice, atcud string) {
 		pdf.SetTextColor(inkR, inkG, inkB)
 		_ = pdf.Cell(nil, atcud)
 
-		pdf.SetXY(pageLeft, stripY+16)
+		pdf.SetXY(pageLeft+14, stripY+16)
 		_ = pdf.SetFont("Sans", "", 8.5)
 		pdf.SetTextColor(lblR, lblG, lblB)
 		_ = pdf.Cell(nil, "Documento conforme à AT")
@@ -238,6 +251,19 @@ func writeHeader(pdf *gopdf.GoPdf, invoice Invoice, atcud string) {
 	pdf.Line(pageLeft, ruleY, pageRight, ruleY)
 
 	pdf.SetXY(pageLeft, ruleY+4)
+}
+
+// expandLetterSpacing inserts a hair space between letters for a wide cap effect.
+func expandLetterSpacing(s string) string {
+	var b strings.Builder
+	runes := []rune(s)
+	for i, r := range runes {
+		b.WriteRune(r)
+		if i < len(runes)-1 && r != ' ' {
+			b.WriteRune(' ')
+		}
+	}
+	return b.String()
 }
 
 // ── Info strip (DE / PARA / meta row) ────────────────────────────────────────
