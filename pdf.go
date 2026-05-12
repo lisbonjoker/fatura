@@ -63,7 +63,7 @@ const (
 // ── Column layout ─────────────────────────────────────────────────────────────
 
 type colPositions struct {
-	descWidth                                     float64
+	descWidth                                      float64
 	dateX, timeX, categoryX, qtyX, rateX, amountX float64
 }
 
@@ -171,29 +171,21 @@ func writeHeader(pdf *gopdf.GoPdf, invoice Invoice, atcud string) {
 	pdf.SetFillColor(hdrR, hdrG, hdrB)
 	pdf.RectFromUpperLeftWithStyle(0, 0, pageWidth, headerBandH, "F")
 
-	// ── Left: logo + company name ─────────────────────────────────────────────
-	logoEndY := 16.0
+	// ── Left: logo OR company name (not both) ────────────────────────────────
 	if invoice.Logo != "" {
 		iw, ih := getImageDimension(invoice.Logo)
-		scaledH := 36.0
+		scaledH := 48.0
 		scaledW := float64(iw) * scaledH / float64(ih)
-		_ = pdf.Image(invoice.Logo, pageLeft, 12, &gopdf.Rect{W: scaledW, H: scaledH})
-		logoEndY = 12 + scaledH + 6
-	}
-
-	pdf.SetXY(pageLeft, logoEndY)
-	fromLines := strings.Split(strings.ReplaceAll(invoice.From, `\n`, "\n"), "\n")
-	for i, line := range fromLines {
-		pdf.SetX(pageLeft)
-		if i == 0 {
+		_ = pdf.Image(invoice.Logo, pageLeft, (headerBandH-scaledH)/2, &gopdf.Rect{W: scaledW, H: scaledH})
+	} else {
+		pdf.SetXY(pageLeft, 16.0)
+		fromLines := strings.Split(strings.ReplaceAll(invoice.From, `\n`, "\n"), "\n")
+		// Only show the first line (name) in the header band
+		if len(fromLines) > 0 {
 			_ = pdf.SetFont("Inter-Bold", "", 10)
 			pdf.SetTextColor(255, 255, 255)
-		} else {
-			_ = pdf.SetFont("Inter", "", 8)
-			pdf.SetTextColor(160, 185, 215)
+			_ = pdf.Cell(nil, truncateToWidth(pdf, fromLines[0], 240))
 		}
-		_ = pdf.Cell(nil, truncateToWidth(pdf, line, 240))
-		pdf.Br(12)
 	}
 
 	// ── Right: FATURA / number / date / ATCUD ────────────────────────────────
