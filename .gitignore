@@ -6,3 +6,4 @@
 !.github/workflows/*.yml
 /invoice
 /fatura
+/IBMPlex/

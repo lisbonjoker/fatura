@@ -23,6 +23,9 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Transferir fontes IBM Plex
+        run: make fonts
+
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
