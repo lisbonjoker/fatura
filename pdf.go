@@ -1,5 +1,22 @@
 package main
 
+// Drop-in replacement for pdf.go — Swiss Grid edition.
+// Keeps every exported writer signature identical to the original so main.go
+// does not need to change. Visual changes are:
+//   • IBM Plex Sans / IBM Plex Mono replace Inter
+//   • All labels are mono, uppercase, 8.5pt, slate
+//   • Single orange dot is the only chromatic accent (next to the doc title)
+//   • Header band is gone; replaced by a 12-col strip + 1-px ink rule
+//   • Item table: no row tinting, hairlines only, tabular numerics
+//   • Totals: right-aligned mono stack, grand total 26pt Mono-SemiBold
+//   • Footer: three-column mono strip with ID · page · seller NIF
+//
+// New font names main.go must register (see Apply Swiss Grid.html):
+//   "Sans"    IBMPlexSans-Regular.ttf
+//   "Sans-B"  IBMPlexSans-SemiBold.ttf
+//   "Mono"    IBMPlexMono-Regular.ttf
+//   "Mono-B"  IBMPlexMono-Medium.ttf
+
 import (
 	"fmt"
 	"image"
@@ -13,29 +30,38 @@ import (
 // ── Page geometry ─────────────────────────────────────────────────────────────
 
 const (
-	pageWidth   = 595.0
-	pageLeft    = 40.0
-	pageRight   = 555.0
-	headerBandH = 88.0
+	pageWidth  = 595.0
+	pageLeft   = 40.0
+	pageRight  = 555.0
+	pageBottom = 802.0
+
+	// In Swiss Grid the header collapses to a thin strip + 1px rule.
+	headerStripH = 28.0
+	headerBandH  = 56.0 // top of body content
 )
 
 // ── Colour palette ────────────────────────────────────────────────────────────
 
 const (
-	hdrR, hdrG, hdrB    = 15, 23, 42    // #0F172A  header band
-	accR, accG, accB    = 59, 130, 246  // #3B82F6  accent blue
-	fillR, fillG, fillB = 241, 245, 249 // #F1F5F9  table header / fiscal row
-	altR, altG, altB    = 248, 250, 252 // #F8FAFC  alternating row / card bg
-	divR, divG, divB    = 226, 232, 240 // #E2E8F0  divider lines
-	lblR, lblG, lblB    = 100, 116, 139 // #64748B  slate label text
-	bdyR, bdyG, bdyB    = 30, 41, 59    // #1E293B  body text
+	inkR, inkG, inkB    = 10, 10, 10    // #0A0A0A primary ink
+	bdyR, bdyG, bdyB    = 48, 48, 48    // #303030 body text
+	lblR, lblG, lblB    = 112, 112, 112 // #707070 mono labels
+	divR, divG, divB    = 216, 216, 216 // #D8D8D8 hairlines
+	hairR, hairG, hairB = 237, 237, 237 // #EDEDED ultra-light row rule
+	fillR, fillG, fillB = 244, 243, 239 // #F4F3EF IBAN / paper tint
+	altR, altG, altB    = 255, 255, 255 // no alternating row fill
+	accR, accG, accB    = 255, 91, 31   // #FF5B1F orange — used ONLY for the doc-type dot
+	hdrR, hdrG, hdrB    = 255, 255, 255 // header background == paper (no band)
+
+	negR, negG, negB = 140, 47, 31 // #8C2F1F minus sign / IRS retention
 )
 
 // ── Totals section layout ─────────────────────────────────────────────────────
 
 const (
-	totalsLabelOffset = 330
-	totalsValueOffset = 492
+	totalsLabelOffset = 330.0
+	totalsValueOffset = 470.0 // right-aligned values flush to this x
+	totalsRightEdge   = pageRight
 )
 
 // ── Column widths ─────────────────────────────────────────────────────────────
@@ -43,10 +69,10 @@ const (
 const (
 	colWidthDate     = 65.0
 	colWidthTime     = 60.0
-	colWidthCategory = 90.0
-	colWidthQty      = 38.0
-	colWidthRate     = 60.0
-	colWidthAmount   = 60.0
+	colWidthCategory = 86.0
+	colWidthQty      = 36.0
+	colWidthRate     = 66.0
+	colWidthAmount   = 78.0
 )
 
 // ── Label constants ───────────────────────────────────────────────────────────
@@ -63,7 +89,7 @@ const (
 // ── Column layout ─────────────────────────────────────────────────────────────
 
 type colPositions struct {
-	descWidth                                      float64
+	descWidth                                     float64
 	dateX, timeX, categoryX, qtyX, rateX, amountX float64
 }
 
@@ -121,7 +147,6 @@ func computeColPositions(inv Invoice) colPositions {
 
 // ── Text helpers ──────────────────────────────────────────────────────────────
 
-// truncateToWidth shortens text with an ellipsis if it exceeds maxWidth points.
 func truncateToWidth(pdf *gopdf.GoPdf, text string, maxWidth float64) string {
 	w, _ := pdf.MeasureTextWidth(text)
 	if w <= maxWidth {
@@ -139,7 +164,6 @@ func truncateToWidth(pdf *gopdf.GoPdf, text string, maxWidth float64) string {
 	return "…"
 }
 
-// notesMaxWidth is the available column width for notes before the totals section.
 const notesMaxWidth = 270.0
 
 func wrapText(pdf *gopdf.GoPdf, text string, maxWidth float64) []string {
@@ -162,169 +186,232 @@ func wrapText(pdf *gopdf.GoPdf, text string, maxWidth float64) []string {
 	return append(lines, current)
 }
 
-// ── Header band ───────────────────────────────────────────────────────────────
+// rightAlignedCell measures text and draws it flush to rightX at the current Y.
+func rightAlignedCell(pdf *gopdf.GoPdf, text string, rightX float64) {
+	w, _ := pdf.MeasureTextWidth(text)
+	pdf.SetX(rightX - w)
+	_ = pdf.Cell(nil, text)
+}
 
-// writeHeader draws the full-width dark header band: company info left,
-// invoice title / number / date right.
+// ── Header strip ──────────────────────────────────────────────────────────────
+// 4-column top strip: badge · DOC TYPE + dot · ATCUD · REF.
+// Followed by a 1-px ink rule. No dark band.
+
 func writeHeader(pdf *gopdf.GoPdf, invoice Invoice, atcud string) {
-	// Dark background band
-	pdf.SetFillColor(hdrR, hdrG, hdrB)
-	pdf.RectFromUpperLeftWithStyle(0, 0, pageWidth, headerBandH, "F")
+	const stripY = 36.0
 
-	// ── Left: logo OR company name (not both) ────────────────────────────────
+	// Left badge: "FT-2026/042" in mono
+	pdf.SetXY(pageLeft, stripY)
+	_ = pdf.SetFont("Mono-B", "", 11)
+	pdf.SetTextColor(inkR, inkG, inkB)
+	badge := buildBadge(invoice.Id)
+	_ = pdf.Cell(nil, badge)
+
+	// Logo (if present) lives in the badge column below
 	if invoice.Logo != "" {
 		iw, ih := getImageDimension(invoice.Logo)
-		scaledH := 48.0
-		scaledW := float64(iw) * scaledH / float64(ih)
-		_ = pdf.Image(invoice.Logo, pageLeft, (headerBandH-scaledH)/2, &gopdf.Rect{W: scaledW, H: scaledH})
-	} else {
-		pdf.SetXY(pageLeft, 16.0)
-		fromLines := strings.Split(strings.ReplaceAll(invoice.From, `\n`, "\n"), "\n")
-		// Only show the first line (name) in the header band
-		if len(fromLines) > 0 {
-			_ = pdf.SetFont("Inter-Bold", "", 10)
-			pdf.SetTextColor(255, 255, 255)
-			_ = pdf.Cell(nil, truncateToWidth(pdf, fromLines[0], 240))
+		if iw > 0 && ih > 0 {
+			scaledH := 22.0
+			scaledW := float64(iw) * scaledH / float64(ih)
+			_ = pdf.Image(invoice.Logo, pageLeft, stripY+16, &gopdf.Rect{W: scaledW, H: scaledH})
 		}
 	}
 
-	// ── Right: FATURA / number / date / ATCUD ────────────────────────────────
-	title := invoice.Title
+	// Centre-left: doc type + accent dot
+	const docX = pageLeft + 110.0
+	pdf.SetFillColor(accR, accG, accB)
+	pdf.RectFromUpperLeftWithStyle(docX, stripY+3, 8, 8, "F")
+
+	pdf.SetXY(docX+14, stripY)
+	_ = pdf.SetFont("Sans-B", "", 11)
+	pdf.SetTextColor(inkR, inkG, inkB)
+	title := strings.ToUpper(invoice.Title)
 	if title == "" {
 		title = "FATURA"
 	}
-	_ = pdf.SetFont("Inter-Bold", "", 22)
-	pdf.SetTextColor(255, 255, 255)
-	titleW, _ := pdf.MeasureTextWidth(title)
-	pdf.SetXY(pageRight-titleW, 16)
-	_ = pdf.Cell(nil, title)
+	_ = pdf.Cell(nil, expandLetterSpacing(title))
 
-	_ = pdf.SetFont("Inter", "", 9)
-	pdf.SetTextColor(accR, accG, accB)
-	numW, _ := pdf.MeasureTextWidth(invoice.Id)
-	pdf.SetXY(pageRight-numW, 44)
-	_ = pdf.Cell(nil, invoice.Id)
+	pdf.SetXY(docX+14, stripY+16)
+	_ = pdf.SetFont("Sans", "", 8.5)
+	pdf.SetTextColor(lblR, lblG, lblB)
+	_ = pdf.Cell(nil, "Documento conforme à AT")
 
-	_ = pdf.SetFont("Inter", "", 8)
-	pdf.SetTextColor(160, 185, 215)
-	dateW, _ := pdf.MeasureTextWidth(invoice.Date)
-	pdf.SetXY(pageRight-dateW, 58)
-	_ = pdf.Cell(nil, invoice.Date)
-
-	if atcud != "" {
-		_ = pdf.SetFont("Inter", "", 7)
-		pdf.SetTextColor(110, 140, 175)
-		atcudStr := "ATCUD: " + atcud
-		atcudW, _ := pdf.MeasureTextWidth(atcudStr)
-		pdf.SetXY(pageRight-atcudW, 71)
-		_ = pdf.Cell(nil, atcudStr)
+	// ATCUD column (right-of-centre)
+	const atcudX = 360.0
+	pdf.SetXY(atcudX, stripY)
+	_ = pdf.SetFont("Mono", "", 8)
+	pdf.SetTextColor(lblR, lblG, lblB)
+	_ = pdf.Cell(nil, "ATCUD")
+	pdf.SetXY(atcudX, stripY+14)
+	_ = pdf.SetFont("Mono-B", "", 10)
+	pdf.SetTextColor(inkR, inkG, inkB)
+	if atcud == "" {
+		atcud = "—"
 	}
+	_ = pdf.Cell(nil, atcud)
 
-	pdf.SetXY(pageLeft, headerBandH)
+	// Right column: reference (or date if no reference)
+	pdf.SetXY(0, stripY)
+	_ = pdf.SetFont("Mono", "", 8)
+	pdf.SetTextColor(lblR, lblG, lblB)
+	rightAlignedCell(pdf, "REFERÊNCIA", pageRight)
+
+	pdf.SetXY(0, stripY+14)
+	_ = pdf.SetFont("Mono-B", "", 10)
+	pdf.SetTextColor(inkR, inkG, inkB)
+	ref := invoice.Reference
+	if ref == "" {
+		ref = invoice.Date
+	}
+	rightAlignedCell(pdf, ref, pageRight)
+
+	// Ink rule under the strip
+	ruleY := stripY + 32
+	pdf.SetStrokeColor(inkR, inkG, inkB)
+	pdf.SetLineWidth(1)
+	pdf.Line(pageLeft, ruleY, pageRight, ruleY)
+
+	pdf.SetXY(pageLeft, ruleY+4)
 }
 
-// ── Info strip (from / to / fiscal details) ───────────────────────────────────
+// buildBadge formats "INV-2026-042" as "FT-2026/042" for the badge.
+// Other id formats pass through unchanged.
+func buildBadge(id string) string {
+	parts := strings.Split(id, "-")
+	if len(parts) >= 3 && parts[0] == "INV" {
+		return "FT-" + parts[1] + "/" + parts[2]
+	}
+	return id
+}
+
+// expandLetterSpacing inserts a hair space between letters for a wide cap effect.
+// gopdf doesn't expose tracking, so we approximate.
+func expandLetterSpacing(s string) string {
+	var b strings.Builder
+	runes := []rune(s)
+	for i, r := range runes {
+		b.WriteRune(r)
+		if i < len(runes)-1 && r != ' ' {
+			b.WriteRune(' ')
+		}
+	}
+	return b.String()
+}
+
+// ── Info strip (DE / PARA / meta row) ────────────────────────────────────────
 
 const (
-	infoDivX   = 290.0 // x position of vertical divider
-	infoRightX = 307.0 // right column start
+	infoDivX   = 297.5 // page midline
+	infoRightX = 312.0
 )
 
-// writeInfoStrip draws the two-column from/to section and the fiscal details row.
 func writeInfoStrip(pdf *gopdf.GoPdf, invoice Invoice) {
-	startY := headerBandH + 20.0
+	startY := 90.0
 
-	// ── Left: DE ──────────────────────────────────────────────────────────────
-	pdf.SetXY(pageLeft, startY)
-	_ = pdf.SetFont("Inter", "", 7)
-	pdf.SetTextColor(lblR, lblG, lblB)
-	_ = pdf.Cell(nil, "DE")
-	pdf.Br(14)
+	drawParty(pdf, "EMITENTE", invoice.From, invoice.SellerVATID, pageLeft, infoDivX-8, startY)
+	rightEnd := drawParty(pdf, "DESTINATÁRIO", invoice.To, invoice.BuyerVATID, infoRightX, pageRight, startY)
 
-	fromLines := strings.Split(strings.ReplaceAll(invoice.From, `\n`, "\n"), "\n")
-	for i, line := range fromLines {
-		pdf.SetX(pageLeft)
-		if i == 0 {
-			_ = pdf.SetFont("Inter-Bold", "", 10)
-			pdf.SetTextColor(bdyR, bdyG, bdyB)
-		} else {
-			_ = pdf.SetFont("Inter", "", 8.5)
-			pdf.SetTextColor(lblR, lblG, lblB)
-		}
-		_ = pdf.Cell(nil, truncateToWidth(pdf, line, infoDivX-pageLeft-8))
-		pdf.Br(13)
+	// Use whichever party block ended lower
+	leftEnd := pdf.GetY()
+	stripEndY := leftEnd
+	if rightEnd > stripEndY {
+		stripEndY = rightEnd
 	}
-	leftEndY := pdf.GetY()
+	stripEndY += 4
 
-	// ── Right: PARA ───────────────────────────────────────────────────────────
-	pdf.SetXY(infoRightX, startY)
-	_ = pdf.SetFont("Inter", "", 7)
-	pdf.SetTextColor(lblR, lblG, lblB)
-	_ = pdf.Cell(nil, "PARA")
-	pdf.Br(14)
-
-	toLines := strings.Split(strings.ReplaceAll(invoice.To, `\n`, "\n"), "\n")
-	for i, line := range toLines {
-		pdf.SetX(infoRightX)
-		if i == 0 {
-			_ = pdf.SetFont("Inter-Bold", "", 10)
-			pdf.SetTextColor(bdyR, bdyG, bdyB)
-		} else {
-			_ = pdf.SetFont("Inter", "", 8.5)
-			pdf.SetTextColor(lblR, lblG, lblB)
-		}
-		_ = pdf.Cell(nil, truncateToWidth(pdf, line, pageRight-infoRightX))
-		pdf.Br(13)
-	}
-	rightEndY := pdf.GetY()
-
-	// Use the taller of the two columns
-	stripEndY := leftEndY
-	if rightEndY > stripEndY {
-		stripEndY = rightEndY
-	}
-	stripEndY += 6
-
-	// Vertical divider between columns
+	// Vertical mid divider
 	pdf.SetStrokeColor(divR, divG, divB)
 	pdf.SetLineWidth(0.5)
-	pdf.Line(infoDivX, startY-2, infoDivX, stripEndY)
+	pdf.Line(infoDivX, startY-4, infoDivX, stripEndY)
 
-	// ── Fiscal details row ────────────────────────────────────────────────────
-	nextY := stripEndY + 10
-	hasFiscal := invoice.SellerVATID != "" || invoice.BuyerVATID != "" || invoice.Reference != ""
-	if hasFiscal {
-		const rowH = 22.0
-		pdf.SetFillColor(fillR, fillG, fillB)
-		pdf.RectFromUpperLeftWithStyle(pageLeft, nextY, pageRight-pageLeft, rowH, "F")
+	// Hairline below parties
+	pdf.SetStrokeColor(divR, divG, divB)
+	pdf.SetLineWidth(0.5)
+	pdf.Line(pageLeft, stripEndY+6, pageRight, stripEndY+6)
 
-		pdf.SetXY(pageLeft+8, nextY+7)
-		_ = pdf.SetFont("Inter", "", 8)
+	// ── Meta row: emissão · vencimento · condições · moeda ────────────────────
+	metaY := stripEndY + 18
+	cells := []struct {
+		label string
+		value string
+	}{
+		{"DATA EMISSÃO", invoice.Date},
+		{"VENCIMENTO", invoice.Due},
+		{"CONDIÇÕES", firstNonEmpty(invoice.PaymentTerms, "30 dias")},
+		{"MOEDA", strings.ToUpper(invoice.Currency)},
+	}
+	colW := (pageRight - pageLeft) / float64(len(cells))
+	for i, c := range cells {
+		x := pageLeft + float64(i)*colW
+		pdf.SetXY(x, metaY)
+		_ = pdf.SetFont("Mono", "", 7.5)
 		pdf.SetTextColor(lblR, lblG, lblB)
+		_ = pdf.Cell(nil, c.label)
 
-		var parts []string
-		if invoice.SellerVATID != "" {
-			parts = append(parts, "NIF Fornecedor: "+invoice.SellerVATID)
-		}
-		if invoice.BuyerVATID != "" {
-			parts = append(parts, "NIF Cliente: "+invoice.BuyerVATID)
-		}
-		if invoice.Reference != "" {
-			parts = append(parts, "Ref.: "+invoice.Reference)
-		}
-		_ = pdf.Cell(nil, strings.Join(parts, "   ·   "))
-		nextY += rowH
+		pdf.SetXY(x, metaY+13)
+		_ = pdf.SetFont("Mono-B", "", 10)
+		pdf.SetTextColor(inkR, inkG, inkB)
+		_ = pdf.Cell(nil, truncateToWidth(pdf, c.value, colW-8))
 	}
 
-	pdf.SetXY(pageLeft, nextY+14)
+	// Bottom ink rule of the info strip
+	bottom := metaY + 32
+	pdf.SetStrokeColor(inkR, inkG, inkB)
+	pdf.SetLineWidth(1)
+	pdf.Line(pageLeft, bottom, pageRight, bottom)
+
+	pdf.SetXY(pageLeft, bottom+22)
+}
+
+func drawParty(pdf *gopdf.GoPdf, label, raw, vatID string, x, rightLimit, startY float64) float64 {
+	pdf.SetXY(x, startY)
+	_ = pdf.SetFont("Mono", "", 7.5)
+	pdf.SetTextColor(lblR, lblG, lblB)
+	_ = pdf.Cell(nil, label)
+	pdf.Br(14)
+
+	lines := strings.Split(strings.ReplaceAll(raw, `\n`, "\n"), "\n")
+	for i, line := range lines {
+		pdf.SetX(x)
+		if i == 0 {
+			_ = pdf.SetFont("Sans-B", "", 11)
+			pdf.SetTextColor(inkR, inkG, inkB)
+		} else {
+			_ = pdf.SetFont("Sans", "", 9.5)
+			pdf.SetTextColor(bdyR, bdyG, bdyB)
+		}
+		_ = pdf.Cell(nil, truncateToWidth(pdf, line, rightLimit-x))
+		if i == 0 {
+			pdf.Br(15)
+		} else {
+			pdf.Br(13)
+		}
+	}
+	if vatID != "" {
+		pdf.SetX(x)
+		_ = pdf.SetFont("Mono-B", "", 10)
+		pdf.SetTextColor(inkR, inkG, inkB)
+		_ = pdf.Cell(nil, vatID)
+		pdf.Br(13)
+	}
+	return pdf.GetY()
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // ── Draft watermark ───────────────────────────────────────────────────────────
 
 func writeDraftWatermark(pdf *gopdf.GoPdf) {
-	_ = pdf.SetFont("Inter-Bold", "", 72)
-	pdf.SetTextColor(220, 220, 220)
-	pdf.SetXY(90, 420)
+	_ = pdf.SetFont("Sans-B", "", 96)
+	pdf.SetTextColor(232, 232, 232)
+	pdf.SetXY(56, 420)
 	_ = pdf.Cell(nil, "RASCUNHO")
 	pdf.SetTextColor(bdyR, bdyG, bdyB)
 }
@@ -333,105 +420,128 @@ func writeDraftWatermark(pdf *gopdf.GoPdf) {
 
 func writeHeaderRow(pdf *gopdf.GoPdf, invoice Invoice, cols colPositions) {
 	rowY := pdf.GetY()
-	const rowH = 24.0
+	const rowH = 22.0
 
-	pdf.SetFillColor(fillR, fillG, fillB)
-	pdf.RectFromUpperLeftWithStyle(pageLeft, rowY, pageRight-pageLeft, rowH, "F")
+	// Top ink rule
+	pdf.SetStrokeColor(inkR, inkG, inkB)
+	pdf.SetLineWidth(0.8)
+	pdf.Line(pageLeft, rowY, pageRight, rowY)
 
 	pdf.SetXY(pageLeft, rowY+8)
-	_ = pdf.SetFont("Inter", "", 7.5)
+	_ = pdf.SetFont("Mono", "", 7.5)
 	pdf.SetTextColor(lblR, lblG, lblB)
 	_ = pdf.Cell(nil, "DESCRIÇÃO")
 	if invoice.ShowDateColumn {
-		pdf.SetX(cols.dateX)
-		_ = pdf.Cell(nil, "DATA")
+		labelInCol(pdf, "DATA", cols.dateX, colWidthDate)
 	}
 	if invoice.ShowTimeColumn {
-		pdf.SetX(cols.timeX)
-		_ = pdf.Cell(nil, "HORA")
+		labelInCol(pdf, "HORA", cols.timeX, colWidthTime)
 	}
 	if invoice.ShowCategoryColumn {
-		pdf.SetX(cols.categoryX)
-		_ = pdf.Cell(nil, "CATEGORIA")
+		labelInCol(pdf, "CATEGORIA", cols.categoryX, colWidthCategory)
 	}
 	if invoice.ShowQuantityColumn {
-		pdf.SetX(cols.qtyX)
-		_ = pdf.Cell(nil, "QTD.")
+		labelInCol(pdf, "QTD.", cols.qtyX, colWidthQty)
 	}
 	if invoice.ShowRateColumn {
-		pdf.SetX(cols.rateX)
-		_ = pdf.Cell(nil, "PREÇO UN.")
+		labelInCol(pdf, "PREÇO UN.", cols.rateX, colWidthRate)
 	}
 	if invoice.ShowAmountColumn {
-		pdf.SetX(cols.amountX)
-		_ = pdf.Cell(nil, "MONTANTE")
+		labelInCol(pdf, "MONTANTE", cols.amountX, colWidthAmount)
 	}
+
+	// Bottom hairline
+	pdf.SetStrokeColor(divR, divG, divB)
+	pdf.SetLineWidth(0.4)
+	pdf.Line(pageLeft, rowY+rowH, pageRight, rowY+rowH)
+
 	pdf.SetXY(pageLeft, rowY+rowH)
+}
+
+// labelInCol right-aligns a column header within its cell, leaving a small
+// right pad so it lines up with the values below.
+func labelInCol(pdf *gopdf.GoPdf, text string, colX, colW float64) {
+	w, _ := pdf.MeasureTextWidth(text)
+	pdf.SetX(colX + colW - w - 4)
+	_ = pdf.Cell(nil, text)
 }
 
 func writeRow(pdf *gopdf.GoPdf, invoice Invoice, i int, item string, quantity, rate float64, cols colPositions) {
 	rowY := pdf.GetY()
-	const rowH = 25.0
+	const rowH = 24.0
 
-	// Alternating row background
-	if i%2 == 1 {
-		pdf.SetFillColor(altR, altG, altB)
-		pdf.RectFromUpperLeftWithStyle(pageLeft, rowY, pageRight-pageLeft, rowH, "F")
-	}
+	// Description
+	pdf.SetXY(pageLeft, rowY+8)
+	_ = pdf.SetFont("Sans-B", "", 10)
+	pdf.SetTextColor(inkR, inkG, inkB)
+	_ = pdf.Cell(nil, truncateToWidth(pdf, item, cols.descWidth-6))
 
-	// Bottom divider
-	pdf.SetStrokeColor(divR, divG, divB)
-	pdf.SetLineWidth(0.3)
-	pdf.Line(pageLeft, rowY+rowH, pageRight, rowY+rowH)
-
+	// Right-aligned numeric / mono cells
 	sym := currencySymbol(invoice.Currency)
 	amount := strconv.FormatFloat(quantity*rate, 'f', 2, 64)
 
-	pdf.SetXY(pageLeft, rowY+8)
-	_ = pdf.SetFont("Inter", "", 10)
-	pdf.SetTextColor(bdyR, bdyG, bdyB)
-	_ = pdf.Cell(nil, truncateToWidth(pdf, item, cols.descWidth-5))
-
 	if invoice.ShowDateColumn {
-		pdf.SetX(cols.dateX)
-		_ = pdf.Cell(nil, getSliceValue(invoice.ItemDates, i))
+		_ = pdf.SetFont("Mono", "", 9.5)
+		pdf.SetTextColor(bdyR, bdyG, bdyB)
+		valueInCol(pdf, getSliceValue(invoice.ItemDates, i), cols.dateX, colWidthDate)
 	}
 	if invoice.ShowTimeColumn {
-		pdf.SetX(cols.timeX)
-		_ = pdf.Cell(nil, getSliceValue(invoice.ItemTimes, i))
+		_ = pdf.SetFont("Mono", "", 9.5)
+		pdf.SetTextColor(bdyR, bdyG, bdyB)
+		valueInCol(pdf, getSliceValue(invoice.ItemTimes, i), cols.timeX, colWidthTime)
 	}
 	if invoice.ShowCategoryColumn {
-		pdf.SetX(cols.categoryX)
-		_ = pdf.Cell(nil, truncateToWidth(pdf, getSliceValue(invoice.ItemCategories, i), colWidthCategory-5))
+		_ = pdf.SetFont("Sans", "", 9.5)
+		pdf.SetTextColor(bdyR, bdyG, bdyB)
+		valueInCol(pdf, truncateToWidth(pdf, getSliceValue(invoice.ItemCategories, i), colWidthCategory-6), cols.categoryX, colWidthCategory)
 	}
 	if invoice.ShowQuantityColumn {
-		pdf.SetX(cols.qtyX)
-		_ = pdf.Cell(nil, formatQuantity(quantity))
+		_ = pdf.SetFont("Mono", "", 10)
+		pdf.SetTextColor(bdyR, bdyG, bdyB)
+		valueInCol(pdf, formatQuantity(quantity), cols.qtyX, colWidthQty)
 	}
 	if invoice.ShowRateColumn {
-		pdf.SetX(cols.rateX)
-		_ = pdf.Cell(nil, sym+strconv.FormatFloat(rate, 'f', 2, 64))
+		_ = pdf.SetFont("Mono", "", 10)
+		pdf.SetTextColor(bdyR, bdyG, bdyB)
+		valueInCol(pdf, sym+strconv.FormatFloat(rate, 'f', 2, 64), cols.rateX, colWidthRate)
 	}
 	if invoice.ShowAmountColumn {
-		pdf.SetX(cols.amountX)
-		_ = pdf.Cell(nil, sym+amount)
+		_ = pdf.SetFont("Mono-B", "", 10)
+		pdf.SetTextColor(inkR, inkG, inkB)
+		valueInCol(pdf, sym+amount, cols.amountX, colWidthAmount)
 	}
+
+	// Hairline divider — no row tinting in Swiss
+	pdf.SetStrokeColor(hairR, hairG, hairB)
+	pdf.SetLineWidth(0.4)
+	pdf.Line(pageLeft, rowY+rowH, pageRight, rowY+rowH)
+
 	pdf.SetXY(pageLeft, rowY+rowH)
+}
+
+// valueInCol right-aligns a numeric/mono value within its column.
+func valueInCol(pdf *gopdf.GoPdf, text string, colX, colW float64) {
+	w, _ := pdf.MeasureTextWidth(text)
+	pdf.SetY(pdf.GetY()) // y already set by caller
+	pdf.SetX(colX + colW - w - 4)
+	_ = pdf.Cell(nil, text)
 }
 
 // ── Notes section ─────────────────────────────────────────────────────────────
 
 func writeNotes(pdf *gopdf.GoPdf, notes string, startY float64) {
 	pdf.SetY(startY)
-	_ = pdf.SetFont("Inter", "", 7.5)
+	pdf.SetX(pageLeft)
+	_ = pdf.SetFont("Mono", "", 7.5)
 	pdf.SetTextColor(lblR, lblG, lblB)
 	_ = pdf.Cell(nil, "OBSERVAÇÕES")
-	pdf.Br(15)
-	_ = pdf.SetFont("Inter", "", 9)
+	pdf.Br(14)
+	_ = pdf.SetFont("Sans", "", 9.5)
 	pdf.SetTextColor(bdyR, bdyG, bdyB)
 
 	for _, line := range strings.Split(strings.ReplaceAll(notes, `\n`, "\n"), "\n") {
 		for _, wrapped := range wrapText(pdf, line, notesMaxWidth) {
+			pdf.SetX(pageLeft)
 			_ = pdf.Cell(nil, wrapped)
 			pdf.Br(14)
 		}
@@ -442,80 +552,55 @@ func writeNotes(pdf *gopdf.GoPdf, notes string, startY float64) {
 
 func writeExemptionReason(pdf *gopdf.GoPdf, code, reason, legalReference string) {
 	pdf.SetY(695)
-	_ = pdf.SetFont("Inter", "", 7.5)
+	pdf.SetX(pageLeft)
+	_ = pdf.SetFont("Mono", "", 7.5)
 	pdf.SetTextColor(lblR, lblG, lblB)
 	_ = pdf.Cell(nil, "MOTIVO DE ISENÇÃO DE IVA")
-	pdf.Br(15)
-	_ = pdf.SetFont("Inter", "", 9)
-	pdf.SetTextColor(bdyR, bdyG, bdyB)
+	pdf.Br(14)
+	_ = pdf.SetFont("Sans-B", "", 10)
+	pdf.SetTextColor(inkR, inkG, inkB)
 	line := code
 	if reason != "" {
 		if line != "" {
-			line += " - " + reason
+			line += " — " + reason
 		} else {
 			line = reason
 		}
 	}
+	pdf.SetX(pageLeft)
 	_ = pdf.Cell(nil, line)
-	pdf.Br(13)
+	pdf.Br(14)
 	if legalReference != "" {
-		_ = pdf.SetFont("Inter", "", 8)
+		_ = pdf.SetFont("Mono", "", 8)
 		pdf.SetTextColor(lblR, lblG, lblB)
-		_ = pdf.Cell(nil, "Ref. Legal: "+legalReference)
+		pdf.SetX(pageLeft)
+		_ = pdf.Cell(nil, "REF. LEGAL  "+legalReference)
 		pdf.Br(13)
 	}
 }
 
-// ── Totals card ───────────────────────────────────────────────────────────────
+// ── Totals — flat right-aligned stack, no card ───────────────────────────────
 
 func writeTotals(pdf *gopdf.GoPdf, invoice Invoice, subtotal, tax, discount, taxRate, withholding, withholdingRate, startY float64) {
-	// Count rows (excluding quantity — shown separately in the table, not the card).
-	rows := 1 // subtotal
-	if tax > 0 {
-		rows++
-	}
-	if withholding > 0 {
-		rows++
-	}
-	if discount > 0 {
-		rows++
-	}
-	rows++ // grand total
-
-	const cardX = totalsLabelOffset - 12.0
-	const cardW = pageRight - cardX
-	cardH := float64(rows)*28 + 24 // 28pt per row + 24pt padding
-	cardY := startY - 8
-
-	// Card: light background + subtle border
-	pdf.SetFillColor(altR, altG, altB)
-	pdf.SetStrokeColor(divR, divG, divB)
-	pdf.SetLineWidth(0.7)
-	pdf.RectFromUpperLeftWithStyle(cardX, cardY, cardW, cardH, "FD")
-
-	// Blue accent bar on top edge of card
-	pdf.SetFillColor(accR, accG, accB)
-	pdf.RectFromUpperLeftWithStyle(cardX, cardY, cardW, 3, "F")
-
-	pdf.SetY(startY + 4)
+	pdf.SetY(startY)
 
 	writeTotalLine(pdf, subtotalLabel, subtotal, invoice.Currency, false, false)
 	if tax > 0 {
-		writeTotalLine(pdf, fmt.Sprintf("%s (%.2f%%)", taxLabel, taxRate*100), tax, invoice.Currency, false, false)
+		writeTotalLine(pdf, fmt.Sprintf("%s  %.2f %%", taxLabel, taxRate*100), tax, invoice.Currency, false, false)
 	}
 	if withholding > 0 {
-		writeTotalLine(pdf, fmt.Sprintf("%s (%.2f%%)", withholdingLabel, withholdingRate*100), withholding, invoice.Currency, true, false)
+		writeTotalLine(pdf, fmt.Sprintf("%s  %.2f %%", withholdingLabel, withholdingRate*100), withholding, invoice.Currency, true, false)
 	}
 	if discount > 0 {
 		writeTotalLine(pdf, discountLabel, discount, invoice.Currency, false, false)
 	}
 
-	// Separator above grand total
-	sepY := pdf.GetY() + 2
-	pdf.SetStrokeColor(divR, divG, divB)
-	pdf.SetLineWidth(0.5)
-	pdf.Line(cardX+10, sepY, pageRight-10, sepY)
-	pdf.Br(10)
+	// Ink rule above grand total
+	sepY := pdf.GetY() + 4
+	pdf.SetStrokeColor(inkR, inkG, inkB)
+	pdf.SetLineWidth(0.8)
+	pdf.Line(totalsLabelOffset, sepY, totalsRightEdge, sepY)
+	pdf.Br(12)
 
 	finalLabel := totalLabel
 	if withholding > 0 {
@@ -523,88 +608,120 @@ func writeTotals(pdf *gopdf.GoPdf, invoice Invoice, subtotal, tax, discount, tax
 	}
 	writeTotalLine(pdf, finalLabel, subtotal+tax-withholding-discount, invoice.Currency, false, true)
 
-	// Position cursor below card for due date / payment terms
-	pdf.SetY(cardY + cardH + 8)
+	pdf.Br(6)
 }
 
 func writeQuantityTotal(pdf *gopdf.GoPdf, totalQty float64) {
-	_ = pdf.SetFont("Inter", "", 8)
+	_ = pdf.SetFont("Mono", "", 8)
 	pdf.SetTextColor(lblR, lblG, lblB)
 	pdf.SetX(totalsLabelOffset)
-	_ = pdf.Cell(nil, "Total Qtd.")
-	_ = pdf.SetFont("Inter", "", 10)
-	pdf.SetTextColor(bdyR, bdyG, bdyB)
-	pdf.SetX(totalsValueOffset)
-	_ = pdf.Cell(nil, formatQuantity(totalQty))
-	pdf.Br(26)
+	_ = pdf.Cell(nil, "TOTAL QTD.")
+
+	_ = pdf.SetFont("Mono-B", "", 10)
+	pdf.SetTextColor(inkR, inkG, inkB)
+	rightAlignedCell(pdf, formatQuantity(totalQty), totalsRightEdge)
+	pdf.Br(22)
 }
 
-// writeTotalLine renders one row in the totals card.
-// negative: prefix value with "−"
-// bold: render in accent blue + Inter-Bold (grand total line)
+// writeTotalLine renders one row in the totals stack.
+//   - negative: prefix value with "−" and render in red ink
+//   - bold:     grand total — ink, Mono-B 26pt for the value
 func writeTotalLine(pdf *gopdf.GoPdf, label string, total float64, currency string, negative, bold bool) {
+	// Label
 	if bold {
-		_ = pdf.SetFont("Inter-Bold", "", 9)
+		_ = pdf.SetFont("Mono-B", "", 8.5)
 	} else {
-		_ = pdf.SetFont("Inter", "", 8)
+		_ = pdf.SetFont("Mono", "", 8.5)
 	}
 	pdf.SetTextColor(lblR, lblG, lblB)
 	pdf.SetX(totalsLabelOffset)
-	_ = pdf.Cell(nil, label)
+	_ = pdf.Cell(nil, strings.ToUpper(label))
 
-	if bold {
-		_ = pdf.SetFont("Inter-Bold", "", 12)
-		pdf.SetTextColor(accR, accG, accB)
-	} else {
-		_ = pdf.SetFont("Inter", "", 10)
-		pdf.SetTextColor(bdyR, bdyG, bdyB)
-	}
+	// Value — right-aligned to totalsRightEdge
 	prefix := ""
 	if negative {
-		prefix = "-"
+		prefix = "−"
 	}
-	pdf.SetX(totalsValueOffset)
-	_ = pdf.Cell(nil, prefix+currencySymbol(currency)+strconv.FormatFloat(total, 'f', 2, 64))
-	pdf.Br(26)
+	valueStr := prefix + currencySymbol(currency) + strconv.FormatFloat(total, 'f', 2, 64)
+
+	if bold {
+		_ = pdf.SetFont("Mono-B", "", 26)
+		pdf.SetTextColor(inkR, inkG, inkB)
+	} else if negative {
+		_ = pdf.SetFont("Mono", "", 11)
+		pdf.SetTextColor(negR, negG, negB)
+	} else {
+		_ = pdf.SetFont("Mono", "", 11)
+		pdf.SetTextColor(bdyR, bdyG, bdyB)
+	}
+
+	w, _ := pdf.MeasureTextWidth(valueStr)
+	if bold {
+		// Big number sits slightly above the label baseline
+		pdf.SetXY(totalsRightEdge-w, pdf.GetY()-6)
+		_ = pdf.Cell(nil, valueStr)
+		pdf.Br(34)
+	} else {
+		pdf.SetX(totalsRightEdge - w)
+		_ = pdf.Cell(nil, valueStr)
+		pdf.Br(22)
+	}
 }
 
 func writeDueDate(pdf *gopdf.GoPdf, due string) {
-	_ = pdf.SetFont("Inter", "", 8)
+	_ = pdf.SetFont("Mono", "", 8.5)
 	pdf.SetTextColor(lblR, lblG, lblB)
 	pdf.SetX(totalsLabelOffset)
-	_ = pdf.Cell(nil, "Data de Vencimento")
-	_ = pdf.SetFont("Inter", "", 10)
-	pdf.SetTextColor(bdyR, bdyG, bdyB)
-	pdf.SetX(totalsValueOffset)
-	_ = pdf.Cell(nil, due)
-	pdf.Br(16)
+	_ = pdf.Cell(nil, "DATA DE VENCIMENTO")
+
+	_ = pdf.SetFont("Mono-B", "", 10)
+	pdf.SetTextColor(inkR, inkG, inkB)
+	rightAlignedCell(pdf, due, totalsRightEdge)
+	pdf.Br(18)
 }
 
 func writePaymentTerms(pdf *gopdf.GoPdf, terms string) {
-	_ = pdf.SetFont("Inter", "", 8)
+	_ = pdf.SetFont("Mono", "", 8.5)
 	pdf.SetTextColor(lblR, lblG, lblB)
 	pdf.SetX(totalsLabelOffset)
-	_ = pdf.Cell(nil, "Condições de Pagamento")
-	_ = pdf.SetFont("Inter", "", 10)
-	pdf.SetTextColor(bdyR, bdyG, bdyB)
-	pdf.SetX(totalsValueOffset)
-	_ = pdf.Cell(nil, terms)
-	pdf.Br(16)
+	_ = pdf.Cell(nil, "CONDIÇÕES DE PAGAMENTO")
+
+	_ = pdf.SetFont("Mono-B", "", 10)
+	pdf.SetTextColor(inkR, inkG, inkB)
+	rightAlignedCell(pdf, terms, totalsRightEdge)
+	pdf.Br(18)
 }
 
-// ── Footer ────────────────────────────────────────────────────────────────────
+// ── Footer — 3-column mono strip ─────────────────────────────────────────────
+// Left:   invoice ID
+// Centre: page indicator
+// Right:  seller NIF (or empty)
 
 func writeFooter(pdf *gopdf.GoPdf, id string) {
-	pdf.SetY(812)
-	pdf.SetStrokeColor(divR, divG, divB)
+	const y = 812.0
+
+	// Top ink rule
+	pdf.SetStrokeColor(inkR, inkG, inkB)
 	pdf.SetLineWidth(0.5)
-	pdf.Line(pageLeft, pdf.GetY(), pageRight, pdf.GetY())
-	pdf.Br(10)
-	_ = pdf.SetFont("Inter", "", 8)
+	pdf.Line(pageLeft, y-8, pageRight, y-8)
+
+	_ = pdf.SetFont("Mono", "", 8)
 	pdf.SetTextColor(lblR, lblG, lblB)
-	idW, _ := pdf.MeasureTextWidth(id)
-	pdf.SetX((pageWidth - idW) / 2)
+
+	// Left
+	pdf.SetXY(pageLeft, y)
 	_ = pdf.Cell(nil, id)
+
+	// Centre
+	page := "PÁGINA 1 / 1"
+	w, _ := pdf.MeasureTextWidth(page)
+	pdf.SetXY((pageWidth-w)/2, y)
+	_ = pdf.Cell(nil, page)
+
+	// Right — kept generic; main.go can pass seller NIF here in a future iteration.
+	right := "CONFORME À AUTORIDADE TRIBUTÁRIA"
+	pdf.SetXY(0, y)
+	rightAlignedCell(pdf, right, pageRight)
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────

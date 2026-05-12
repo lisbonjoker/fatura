@@ -33,6 +33,9 @@ func getVersion() string {
 	return "dev"
 }
 
+// IBM Plex fonts are the intended typeface (see IBMPlex/ + Apply Swiss Grid.html).
+// Inter is used here as a buildable interim until those TTFs are added to the repo.
+//
 //go:embed "Inter/Inter Variable/Inter.ttf"
 var interFont []byte
 
@@ -355,10 +358,19 @@ Exemplos:
 		pdf.SetMargins(40, 40, 40, 40)
 		pdf.AddPage()
 
-		if err := pdf.AddTTFFontData("Inter", interFont); err != nil {
+		// Register Inter under the Swiss Grid font names.
+		// Replace interFont/interBoldFont with IBM Plex TTFs (see IBMPlex/ dir)
+		// once they are available — the pdf.go writer code stays identical.
+		if err := pdf.AddTTFFontData("Sans", interFont); err != nil {
 			return err
 		}
-		if err := pdf.AddTTFFontData("Inter-Bold", interBoldFont); err != nil {
+		if err := pdf.AddTTFFontData("Sans-B", interBoldFont); err != nil {
+			return err
+		}
+		if err := pdf.AddTTFFontData("Mono", interFont); err != nil {
+			return err
+		}
+		if err := pdf.AddTTFFontData("Mono-B", interBoldFont); err != nil {
 			return err
 		}
 
