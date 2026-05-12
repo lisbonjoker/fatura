@@ -33,14 +33,17 @@ func getVersion() string {
 	return "dev"
 }
 
-// IBM Plex fonts are the intended typeface (see IBMPlex/ + Apply Swiss Grid.html).
-// Inter is used here as a buildable interim until those TTFs are added to the repo.
-//
-//go:embed "Inter/Inter Variable/Inter.ttf"
-var interFont []byte
+//go:embed "IBMPlex/IBMPlexSans-Regular.ttf"
+var plexSansFont []byte
 
-//go:embed "Inter/Inter Hinted for Windows/Desktop/Inter-Bold.ttf"
-var interBoldFont []byte
+//go:embed "IBMPlex/IBMPlexSans-SemiBold.ttf"
+var plexSansBoldFont []byte
+
+//go:embed "IBMPlex/IBMPlexMono-Regular.ttf"
+var plexMonoFont []byte
+
+//go:embed "IBMPlex/IBMPlexMono-Medium.ttf"
+var plexMonoBoldFont []byte
 
 type Invoice struct {
 	Id    string `json:"id"    yaml:"id"`
@@ -358,19 +361,16 @@ Exemplos:
 		pdf.SetMargins(40, 40, 40, 40)
 		pdf.AddPage()
 
-		// Register Inter under the Swiss Grid font names.
-		// Replace interFont/interBoldFont with IBM Plex TTFs (see IBMPlex/ dir)
-		// once they are available — the pdf.go writer code stays identical.
-		if err := pdf.AddTTFFontData("Sans", interFont); err != nil {
+		if err := pdf.AddTTFFontData("Sans", plexSansFont); err != nil {
 			return err
 		}
-		if err := pdf.AddTTFFontData("Sans-B", interBoldFont); err != nil {
+		if err := pdf.AddTTFFontData("Sans-B", plexSansBoldFont); err != nil {
 			return err
 		}
-		if err := pdf.AddTTFFontData("Mono", interFont); err != nil {
+		if err := pdf.AddTTFFontData("Mono", plexMonoFont); err != nil {
 			return err
 		}
-		if err := pdf.AddTTFFontData("Mono-B", interBoldFont); err != nil {
+		if err := pdf.AddTTFFontData("Mono-B", plexMonoBoldFont); err != nil {
 			return err
 		}
 

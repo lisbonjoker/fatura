@@ -20,6 +20,9 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Transferir fontes IBM Plex
+        run: make fonts
+
       - name: Compilar
         run: go build ./...
 
