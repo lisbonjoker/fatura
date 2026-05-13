@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"strings"
-	"time"
 )
 
 var exemptionCodeFlag string
@@ -90,8 +89,8 @@ func validateInvoiceCompliance(invoice Invoice) error {
 		return fmt.Errorf("IVA é 0; indique --exemption <código> (ex: M07) ou --exemption-reason")
 	}
 
-	if _, err := time.Parse("Jan 02, 2006", invoice.Date); err != nil {
-		return fmt.Errorf("formato de data inválido: use \"Jan 02, 2006\"")
+	if _, err := normalizeDate(invoice.Date); err != nil {
+		return err
 	}
 	return nil
 }
