@@ -691,10 +691,25 @@ func applyQuantities(cmd *cobra.Command, inv *Invoice) error {
 func normalizeDate(s string) (string, error) {
 	for _, layout := range []string{"Jan 02, 2006", "2006-01-02", "02/01/2006"} {
 		if t, err := time.Parse(layout, s); err == nil {
+			year := t.Year()
+			if year < 2000 || year > time.Now().Year()+5 {
+				return "", fmt.Errorf("ano improvável: %d — verifique a data %q (pretendia %s)",
+					year, s, suggestYear(year))
+			}
 			return t.Format("Jan 02, 2006"), nil
 		}
 	}
 	return "", fmt.Errorf("formato de data inválido: use YYYY-MM-DD, DD/MM/YYYY ou \"Jan 02, 2006\"")
+}
+
+// suggestYear proposes the most likely correction for a mistyped year.
+// e.g. 1015 → "2015?", 1025 → "2025?" (swap leading 1 → 2).
+func suggestYear(y int) string {
+	s := fmt.Sprintf("%d", y)
+	if len(s) == 4 && s[0] == '1' {
+		return "2" + s[1:] + "?"
+	}
+	return fmt.Sprintf("%d?", time.Now().Year())
 }
 
 func truncate(s string, n int) string {
