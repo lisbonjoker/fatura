@@ -172,6 +172,10 @@ func init() {
 	generateCmd.Flags().StringVarP(&invoice.Note, "note", "n", "", "Observações")
 	generateCmd.Flags().StringVarP(&output, "output", "o", "fatura.pdf", "Ficheiro de saída (.pdf)")
 
+	// summary
+	summaryCmd.Flags().String("pdf", "", "Gerar relatório anual em PDF para o ficheiro indicado")
+	summaryCmd.Flags().Int("compare", 0, "Comparar com o ano indicado (ex: --compare 2025)")
+
 	// send
 	sendCmd.Flags().StringP("to", "t", "", "Endereço de email do destinatário")
 	sendCmd.Flags().StringP("pdf", "p", "", "Caminho para o ficheiro PDF")
@@ -179,7 +183,7 @@ func init() {
 	_ = sendCmd.MarkFlagRequired("to")
 	_ = sendCmd.MarkFlagRequired("pdf")
 
-	rootCmd.AddCommand(generateCmd, listCmd, showCmd, sendCmd, summaryCmd, versionCmd)
+	rootCmd.AddCommand(generateCmd, listCmd, showCmd, sendCmd, summaryCmd, payCmd, versionCmd)
 
 	// Remove the shell completion command — not needed for end users.
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
@@ -227,7 +231,7 @@ Utilize "{{.CommandPath}} [comando] --help" para mais informação sobre um coma
 `)
 
 	// Translate the --help flag description on every command.
-	for _, cmd := range []*cobra.Command{rootCmd, generateCmd, listCmd, showCmd, sendCmd, summaryCmd, versionCmd} {
+	for _, cmd := range []*cobra.Command{rootCmd, generateCmd, listCmd, showCmd, sendCmd, summaryCmd, payCmd, versionCmd} {
 		cmd.InitDefaultHelpFlag()
 		if f := cmd.Flags().Lookup("help"); f != nil {
 			f.Usage = "Mostrar esta ajuda"
@@ -249,7 +253,8 @@ Comandos disponíveis:
   list       Listar faturas emitidas
   show       Mostrar detalhes de uma fatura
   send       Enviar fatura por email
-  summary    Resumo anual de faturação (CSV)
+  summary    Resumo anual de faturação (tabela + CSV + PDF opcional)
+  pay        Marcar fatura como paga
   version    Mostrar a versão instalada
 
 Exemplos:
@@ -479,15 +484,22 @@ Exemplo:
 			return nil
 		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tDATA\tCLIENTE\tTOTAL\tFICHEIRO")
+		fmt.Fprintln(w, "ID\tDATA\tCLIENTE\tTOTAL\tESTADO\tFICHEIRO")
 		for _, r := range records {
 			label := r.Id
 			if r.Draft {
 				label += " [rascunho]"
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s%.2f\t%s\n",
+			estado := "pendente"
+			switch {
+			case r.Draft:
+				estado = "—"
+			case r.PaidAt != "":
+				estado = "pago"
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s%.2f\t%s\t%s\n",
 				label, r.Date, truncate(r.To, 30),
-				currencySymbol(r.Currency), r.Total, r.PDF)
+				currencySymbol(r.Currency), r.Total, estado, r.PDF)
 		}
 		return w.Flush()
 	},
@@ -515,8 +527,13 @@ Exemplo:
 				fmt.Printf("Total:      %s%.2f\n", currencySymbol(r.Currency), r.Total)
 				fmt.Printf("Ficheiro:   %s\n", r.PDF)
 				fmt.Printf("Emitida em: %s\n", r.IssuedAt)
-				if r.Draft {
+				switch {
+				case r.Draft:
 					fmt.Println("Tipo:       Rascunho")
+				case r.PaidAt != "":
+					fmt.Printf("Pago em:    %s\n", r.PaidAt)
+				default:
+					fmt.Println("Estado:     Pendente")
 				}
 				return nil
 			}
@@ -661,13 +678,20 @@ var summaryCmd = &cobra.Command{
 	Short: "Resumo anual de faturação",
 	Long: `Apresenta o resumo mensal de faturação para o ano indicado (ou o ano actual).
 
-Mostra subtotal faturado, IVA cobrado, retenção na fonte e total líquido por mês,
-com totais anuais. O ficheiro CSV é actualizado automaticamente após cada fatura:
+Mostra subtotal faturado, IVA, retenção na fonte e total por mês, com totais
+anuais, breakdown por cliente, recebíveis pendentes e projeção anual.
+O CSV é actualizado automaticamente após cada fatura:
   ~/.fatura/relatorio-YYYY-MOEDA.csv
+
+Opções:
+  --pdf <ficheiro>    Gerar relatório em PDF
+  --compare <ano>     Comparar com outro ano
 
 Exemplos:
   fatura summary
-  fatura summary 2025`,
+  fatura summary 2025
+  fatura summary --pdf relatorio-2026.pdf
+  fatura summary --compare 2025`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		year := time.Now().Year()
@@ -678,14 +702,16 @@ Exemplos:
 			}
 			year = y
 		}
+		pdfOut, _ := cmd.Flags().GetString("pdf")
+		compareYear, _ := cmd.Flags().GetInt("compare")
 
 		records, err := loadHistory()
 		if err != nil {
 			return err
 		}
 
-		type row struct{ subtotal, taxAmount, withholding, total float64 }
-		byCurrency := map[string][12]row{}
+		// Collect currencies present in the requested year.
+		currencySet := map[string]struct{}{}
 		for _, r := range records {
 			if r.Draft {
 				continue
@@ -694,30 +720,26 @@ Exemplos:
 			if err != nil || t.Year() != year {
 				continue
 			}
-			m := int(t.Month()) - 1
 			cur := r.Currency
 			if cur == "" {
 				cur = "EUR"
 			}
-			months := byCurrency[cur]
-			months[m].subtotal += r.Subtotal
-			months[m].taxAmount += r.TaxAmount
-			months[m].withholding += r.Subtotal * r.Withholding
-			months[m].total += r.Total
-			byCurrency[cur] = months
+			currencySet[cur] = struct{}{}
 		}
 
-		if len(byCurrency) == 0 {
+		if len(currencySet) == 0 {
 			fmt.Printf("Nenhuma fatura registada para %d.\n", year)
 			return nil
 		}
 
-		for currency, months := range byCurrency {
+		for currency := range currencySet {
+			months, clients, unpaid, totSub, totTax, totWith, totTotal := aggregateYear(records, year, currency)
 			sym := currencySymbol(currency)
+
+			// ── Monthly table ────────────────────────────────────────────────
 			fmt.Printf("Relatório anual — %d (%s)\n\n", year, currency)
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 			fmt.Fprintf(w, "Mês\tFaturado\tIVA\tRetenção IRS\tTotal\n")
-			var totSub, totTax, totWith, totTotal float64
 			for i, name := range ptMonths {
 				fmt.Fprintf(w, "%s\t%s%.2f\t%s%.2f\t%s%.2f\t%s%.2f\n",
 					name,
@@ -725,19 +747,114 @@ Exemplos:
 					sym, months[i].taxAmount,
 					sym, months[i].withholding,
 					sym, months[i].total)
-				totSub += months[i].subtotal
-				totTax += months[i].taxAmount
-				totWith += months[i].withholding
-				totTotal += months[i].total
 			}
 			fmt.Fprintf(w, "TOTAL\t%s%.2f\t%s%.2f\t%s%.2f\t%s%.2f\n",
 				sym, totSub, sym, totTax, sym, totWith, sym, totTotal)
 			_ = w.Flush()
 
+			// ── Per-client breakdown ─────────────────────────────────────────
+			if len(clients) > 0 {
+				fmt.Printf("\nPor cliente:\n")
+				wc := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+				for _, c := range clients {
+					inv := "fatura"
+					if c.invoices != 1 {
+						inv = "faturas"
+					}
+					pendente := ""
+					if c.unpaid > 0 {
+						pendente = fmt.Sprintf("  (pendente %s%.2f)", sym, c.unpaid)
+					}
+					fmt.Fprintf(wc, "  %s\t%d %s\t%s%.2f%s\n",
+						c.name, c.invoices, inv, sym, c.total, pendente)
+				}
+				_ = wc.Flush()
+			}
+
+			// ── Unpaid receivables ───────────────────────────────────────────
+			if len(unpaid) > 0 {
+				var unpaidTotal float64
+				for _, r := range unpaid {
+					unpaidTotal += r.Total
+				}
+				fmt.Printf("\nRecebíveis pendentes: %s%.2f (%d fatura(s))\n",
+					sym, unpaidTotal, len(unpaid))
+				for _, r := range unpaid {
+					client := strings.TrimSpace(strings.Split(strings.ReplaceAll(r.To, `\n`, "\n"), "\n")[0])
+					fmt.Printf("  %-16s  %-28s  %s  %s%.2f\n",
+						r.Id, truncate(client, 28), r.Date, sym, r.Total)
+				}
+			}
+
+			// ── Projection ───────────────────────────────────────────────────
+			if year == time.Now().Year() {
+				monthsElapsed := int(time.Now().Month())
+				if totTotal > 0 && monthsElapsed > 0 {
+					projected := totTotal / float64(monthsElapsed) * 12
+					fmt.Printf("\nProjeção anual (%d meses): %s%.2f\n",
+						monthsElapsed, sym, projected)
+				}
+			}
+
+			// ── YoY comparison ───────────────────────────────────────────────
+			if compareYear > 0 {
+				var cmpTotal float64
+				for _, r := range records {
+					if r.Draft {
+						continue
+					}
+					cur := r.Currency
+					if cur == "" {
+						cur = "EUR"
+					}
+					t, err := time.Parse("Jan 02, 2006", r.Date)
+					if err != nil || t.Year() != compareYear || cur != currency {
+						continue
+					}
+					cmpTotal += r.Total
+				}
+				if cmpTotal > 0 {
+					delta := (totTotal - cmpTotal) / cmpTotal * 100
+					sign := "+"
+					if delta < 0 {
+						sign = ""
+					}
+					fmt.Printf("\nComparação: %d %s%.2f  vs  %d %s%.2f  (%s%.1f%%)\n",
+						year, sym, totTotal, compareYear, sym, cmpTotal, sign, delta)
+				}
+			}
+
+			// ── CSV path ─────────────────────────────────────────────────────
 			if csvPath, err := yearlyCSVPath(year, currency); err == nil {
 				fmt.Printf("\nCSV: %s\n", csvPath)
 			}
+
+			// ── PDF report ───────────────────────────────────────────────────
+			if pdfOut != "" {
+				if err := generateAnnualReportPDF(records, year, compareYear, currency, pdfOut); err != nil {
+					return fmt.Errorf("erro ao gerar PDF: %w", err)
+				}
+				fmt.Printf("Relatório PDF: %s\n", pdfOut)
+			}
 		}
+		return nil
+	},
+}
+
+var payCmd = &cobra.Command{
+	Use:   "pay <id>",
+	Short: "Marcar fatura como paga",
+	Long: `Marca uma fatura como paga, registando a data e hora de pagamento.
+
+Exemplo:
+  fatura pay INV-2026-001`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		paidAt, err := markAsPaid(args[0])
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Fatura %s marcada como paga em %s.\n", args[0], paidAt)
 		return nil
 	},
 }

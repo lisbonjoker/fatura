@@ -93,6 +93,7 @@ type InvoiceRecord struct {
 	PDF         string  `json:"pdf"`
 	Draft       bool    `json:"draft,omitempty"`
 	IssuedAt    string  `json:"issued_at"`
+	PaidAt      string  `json:"paid_at,omitempty"`
 }
 
 type SMTPConfig struct {
@@ -222,6 +223,41 @@ func loadHistory() ([]InvoiceRecord, error) {
 	}
 	var records []InvoiceRecord
 	return records, json.Unmarshal(data, &records)
+}
+
+func markAsPaid(id string) (string, error) {
+	dir, err := invoiceConfigDir()
+	if err != nil {
+		return "", err
+	}
+	histFile := filepath.Join(dir, "history.json")
+
+	var records []InvoiceRecord
+	if data, err := os.ReadFile(histFile); err == nil {
+		_ = json.Unmarshal(data, &records)
+	}
+
+	paidAt := time.Now().Format("2006-01-02 15:04")
+	found := false
+	for i, r := range records {
+		if r.Id == id {
+			if r.PaidAt != "" {
+				return r.PaidAt, fmt.Errorf("fatura %q já marcada como paga em %s", id, r.PaidAt)
+			}
+			records[i].PaidAt = paidAt
+			found = true
+			break
+		}
+	}
+	if !found {
+		return "", fmt.Errorf("fatura %q não encontrada", id)
+	}
+
+	data, err := json.MarshalIndent(records, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return paidAt, os.WriteFile(histFile, data, 0644)
 }
 
 func saveRecurringTemplate(name string, inv Invoice) error {
