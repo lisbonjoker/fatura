@@ -179,7 +179,7 @@ func init() {
 	_ = sendCmd.MarkFlagRequired("to")
 	_ = sendCmd.MarkFlagRequired("pdf")
 
-	rootCmd.AddCommand(generateCmd, listCmd, showCmd, sendCmd, versionCmd)
+	rootCmd.AddCommand(generateCmd, listCmd, showCmd, sendCmd, summaryCmd, versionCmd)
 
 	// Remove the shell completion command — not needed for end users.
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
@@ -227,7 +227,7 @@ Utilize "{{.CommandPath}} [comando] --help" para mais informação sobre um coma
 `)
 
 	// Translate the --help flag description on every command.
-	for _, cmd := range []*cobra.Command{rootCmd, generateCmd, listCmd, showCmd, sendCmd, versionCmd} {
+	for _, cmd := range []*cobra.Command{rootCmd, generateCmd, listCmd, showCmd, sendCmd, summaryCmd, versionCmd} {
 		cmd.InitDefaultHelpFlag()
 		if f := cmd.Flags().Lookup("help"); f != nil {
 			f.Usage = "Mostrar esta ajuda"
@@ -249,6 +249,7 @@ Comandos disponíveis:
   list       Listar faturas emitidas
   show       Mostrar detalhes de uma fatura
   send       Enviar fatura por email
+  summary    Resumo anual de faturação (CSV)
   version    Mostrar a versão instalada
 
 Exemplos:
@@ -435,9 +436,10 @@ Exemplos:
 			return err
 		}
 
-		total := subtotal + subtotal*invoice.Tax - subtotal*invoice.Withholding - subtotal*invoice.Discount
+		taxAmount := subtotal * invoice.Tax
+		total := subtotal + taxAmount - subtotal*invoice.Withholding - subtotal*invoice.Discount
 		if !draft {
-			_ = saveToHistory(invoice, output, total, false)
+			_ = saveToHistory(invoice, output, subtotal, taxAmount, total, false)
 		}
 
 		if recurName != "" {
@@ -652,6 +654,92 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n-1] + "…"
+}
+
+var summaryCmd = &cobra.Command{
+	Use:   "summary [ano]",
+	Short: "Resumo anual de faturação",
+	Long: `Apresenta o resumo mensal de faturação para o ano indicado (ou o ano actual).
+
+Mostra subtotal faturado, IVA cobrado, retenção na fonte e total líquido por mês,
+com totais anuais. O ficheiro CSV é actualizado automaticamente após cada fatura:
+  ~/.fatura/relatorio-YYYY-MOEDA.csv
+
+Exemplos:
+  fatura summary
+  fatura summary 2025`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		year := time.Now().Year()
+		if len(args) == 1 {
+			y, err := strconv.Atoi(args[0])
+			if err != nil {
+				return fmt.Errorf("ano inválido: %q", args[0])
+			}
+			year = y
+		}
+
+		records, err := loadHistory()
+		if err != nil {
+			return err
+		}
+
+		type row struct{ subtotal, taxAmount, withholding, total float64 }
+		byCurrency := map[string][12]row{}
+		for _, r := range records {
+			if r.Draft {
+				continue
+			}
+			t, err := time.Parse("Jan 02, 2006", r.Date)
+			if err != nil || t.Year() != year {
+				continue
+			}
+			m := int(t.Month()) - 1
+			cur := r.Currency
+			if cur == "" {
+				cur = "EUR"
+			}
+			months := byCurrency[cur]
+			months[m].subtotal += r.Subtotal
+			months[m].taxAmount += r.TaxAmount
+			months[m].withholding += r.Subtotal * r.Withholding
+			months[m].total += r.Total
+			byCurrency[cur] = months
+		}
+
+		if len(byCurrency) == 0 {
+			fmt.Printf("Nenhuma fatura registada para %d.\n", year)
+			return nil
+		}
+
+		for currency, months := range byCurrency {
+			sym := currencySymbol(currency)
+			fmt.Printf("Relatório anual — %d (%s)\n\n", year, currency)
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+			fmt.Fprintf(w, "Mês\tFaturado\tIVA\tRetenção IRS\tTotal\n")
+			var totSub, totTax, totWith, totTotal float64
+			for i, name := range ptMonths {
+				fmt.Fprintf(w, "%s\t%s%.2f\t%s%.2f\t%s%.2f\t%s%.2f\n",
+					name,
+					sym, months[i].subtotal,
+					sym, months[i].taxAmount,
+					sym, months[i].withholding,
+					sym, months[i].total)
+				totSub += months[i].subtotal
+				totTax += months[i].taxAmount
+				totWith += months[i].withholding
+				totTotal += months[i].total
+			}
+			fmt.Fprintf(w, "TOTAL\t%s%.2f\t%s%.2f\t%s%.2f\t%s%.2f\n",
+				sym, totSub, sym, totTax, sym, totWith, sym, totTotal)
+			_ = w.Flush()
+
+			if csvPath, err := yearlyCSVPath(year, currency); err == nil {
+				fmt.Printf("\nCSV: %s\n", csvPath)
+			}
+		}
+		return nil
+	},
 }
 
 var versionCmd = &cobra.Command{
