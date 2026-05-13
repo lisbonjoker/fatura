@@ -344,6 +344,16 @@ Exemplos:
 		}
 		applyItemColumnVisibility(&invoice)
 
+		// Normalise dates: accept YYYY-MM-DD and DD/MM/YYYY in addition to the
+		// canonical "Jan 02, 2006" format used everywhere internally.
+		var errDate error
+		if invoice.Date, errDate = normalizeDate(invoice.Date); errDate != nil {
+			return fmt.Errorf("--date: %w", errDate)
+		}
+		if invoice.Due, errDate = normalizeDate(invoice.Due); errDate != nil {
+			return fmt.Errorf("--due: %w", errDate)
+		}
+
 		// Assign invoice number: auto-increment for real invoices, DRAFT prefix for drafts.
 		if invoice.Id == "" {
 			if draft {
@@ -674,6 +684,17 @@ func applyQuantities(cmd *cobra.Command, inv *Invoice) error {
 	}
 	inv.Quantities = parsed
 	return nil
+}
+
+// normalizeDate accepts "Jan 02, 2006", "2006-01-02", or "02/01/2006" and
+// always returns the canonical "Jan 02, 2006" form used internally.
+func normalizeDate(s string) (string, error) {
+	for _, layout := range []string{"Jan 02, 2006", "2006-01-02", "02/01/2006"} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t.Format("Jan 02, 2006"), nil
+		}
+	}
+	return "", fmt.Errorf("formato de data inválido: use YYYY-MM-DD, DD/MM/YYYY ou \"Jan 02, 2006\"")
 }
 
 func truncate(s string, n int) string {
