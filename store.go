@@ -85,12 +85,15 @@ type InvoiceRecord struct {
 	Id          string  `json:"id"`
 	To          string  `json:"to"`
 	Date        string  `json:"date"`
+	Subtotal    float64 `json:"subtotal"`
+	TaxAmount   float64 `json:"tax_amount"`
 	Total       float64 `json:"total"`
 	Currency    string  `json:"currency"`
 	Withholding float64 `json:"withholding,omitempty"`
 	PDF         string  `json:"pdf"`
 	Draft       bool    `json:"draft,omitempty"`
 	IssuedAt    string  `json:"issued_at"`
+	PaidAt      string  `json:"paid_at,omitempty"`
 }
 
 type SMTPConfig struct {
@@ -156,7 +159,7 @@ func nextInvoiceNumber() (string, error) {
 	return fmt.Sprintf("INV-%d-%03d", year, n), nil
 }
 
-func saveToHistory(inv Invoice, pdfPath string, total float64, draft bool) error {
+func saveToHistory(inv Invoice, pdfPath string, subtotal, taxAmount, total float64, draft bool) error {
 	dir, err := invoiceConfigDir()
 	if err != nil {
 		return err
@@ -168,12 +171,19 @@ func saveToHistory(inv Invoice, pdfPath string, total float64, draft bool) error
 		_ = json.Unmarshal(data, &records)
 	}
 
+	currency := inv.Currency
+	if currency == "" {
+		currency = "EUR"
+	}
+
 	records = append(records, InvoiceRecord{
 		Id:          inv.Id,
 		To:          inv.To,
 		Date:        inv.Date,
+		Subtotal:    subtotal,
+		TaxAmount:   taxAmount,
 		Total:       total,
-		Currency:    inv.Currency,
+		Currency:    currency,
 		Withholding: inv.Withholding,
 		PDF:         pdfPath,
 		Draft:       draft,
@@ -184,7 +194,19 @@ func saveToHistory(inv Invoice, pdfPath string, total float64, draft bool) error
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(histFile, data, 0644)
+	if err := os.WriteFile(histFile, data, 0644); err != nil {
+		return err
+	}
+
+	if !draft {
+		t, parseErr := time.Parse("Jan 02, 2006", inv.Date)
+		year := time.Now().Year()
+		if parseErr == nil {
+			year = t.Year()
+		}
+		_ = updateYearlyCSV(records, year)
+	}
+	return nil
 }
 
 func loadHistory() ([]InvoiceRecord, error) {
@@ -203,6 +225,41 @@ func loadHistory() ([]InvoiceRecord, error) {
 	return records, json.Unmarshal(data, &records)
 }
 
+func markAsPaid(id string) (string, error) {
+	dir, err := invoiceConfigDir()
+	if err != nil {
+		return "", err
+	}
+	histFile := filepath.Join(dir, "history.json")
+
+	var records []InvoiceRecord
+	if data, err := os.ReadFile(histFile); err == nil {
+		_ = json.Unmarshal(data, &records)
+	}
+
+	paidAt := time.Now().Format("2006-01-02 15:04")
+	found := false
+	for i, r := range records {
+		if r.Id == id {
+			if r.PaidAt != "" {
+				return r.PaidAt, fmt.Errorf("fatura %q já marcada como paga em %s", id, r.PaidAt)
+			}
+			records[i].PaidAt = paidAt
+			found = true
+			break
+		}
+	}
+	if !found {
+		return "", fmt.Errorf("fatura %q não encontrada", id)
+	}
+
+	data, err := json.MarshalIndent(records, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return paidAt, os.WriteFile(histFile, data, 0644)
+}
+
 func saveRecurringTemplate(name string, inv Invoice) error {
 	dir, err := invoiceConfigDir()
 	if err != nil {
@@ -217,6 +274,75 @@ func saveRecurringTemplate(name string, inv Invoice) error {
 		return err
 	}
 	return os.WriteFile(filepath.Join(recurDir, name+".yaml"), data, 0644)
+}
+
+var ptMonths = [12]string{
+	"Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+	"Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+}
+
+// updateYearlyCSV rebuilds ~/.fatura/relatorio-YYYY-CURRENCY.csv from the
+// full history slice. Called automatically after every real invoice is saved.
+func updateYearlyCSV(records []InvoiceRecord, year int) error {
+	dir, err := invoiceConfigDir()
+	if err != nil {
+		return err
+	}
+
+	type row struct{ subtotal, taxAmount, withholding, total float64 }
+	byCurrency := map[string][12]row{}
+
+	for _, r := range records {
+		if r.Draft {
+			continue
+		}
+		t, err := time.Parse("Jan 02, 2006", r.Date)
+		if err != nil || t.Year() != year {
+			continue
+		}
+		m := int(t.Month()) - 1
+		cur := r.Currency
+		if cur == "" {
+			cur = "EUR"
+		}
+		months := byCurrency[cur]
+		months[m].subtotal += r.Subtotal
+		months[m].taxAmount += r.TaxAmount
+		months[m].withholding += r.Subtotal * r.Withholding
+		months[m].total += r.Total
+		byCurrency[cur] = months
+	}
+
+	for currency, months := range byCurrency {
+		var totSub, totTax, totWith, totTotal float64
+		var buf strings.Builder
+		buf.WriteString("Mês,Faturado,IVA,Retenção IRS,Total\n")
+		for i, name := range ptMonths {
+			buf.WriteString(fmt.Sprintf("%s,%.2f,%.2f,%.2f,%.2f\n",
+				name, months[i].subtotal, months[i].taxAmount,
+				months[i].withholding, months[i].total))
+			totSub += months[i].subtotal
+			totTax += months[i].taxAmount
+			totWith += months[i].withholding
+			totTotal += months[i].total
+		}
+		buf.WriteString(fmt.Sprintf("TOTAL,%.2f,%.2f,%.2f,%.2f\n",
+			totSub, totTax, totWith, totTotal))
+
+		csvPath := filepath.Join(dir, fmt.Sprintf("relatorio-%d-%s.csv", year, currency))
+		if err := os.WriteFile(csvPath, []byte(buf.String()), 0644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func yearlyCSVPath(year int, currency string) (string, error) {
+	dir, err := invoiceConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, fmt.Sprintf("relatorio-%d-%s.csv", year, currency)), nil
 }
 
 func loadRecurringTemplate(name string) (Invoice, error) {
