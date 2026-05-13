@@ -246,15 +246,16 @@ var rootCmd = &cobra.Command{
 
 Gera PDFs de faturas conformes com os requisitos da Autoridade Tributária (AT),
 incluindo numeração sequencial automática, isenções de IVA (M01–M99), ATCUD,
-NIF de emitente/cliente e envio por email.
+NIF de emitente/cliente e envio por email. Inclui relatório anual com breakdown
+por cliente, registo de pagamentos e exportação em PDF e CSV.
 
 Comandos disponíveis:
   generate   Gerar um PDF de fatura
-  list       Listar faturas emitidas
+  list       Listar faturas emitidas (com estado de pagamento)
   show       Mostrar detalhes de uma fatura
   send       Enviar fatura por email
-  summary    Resumo anual de faturação (tabela + CSV + PDF opcional)
   pay        Marcar fatura como paga
+  summary    Resumo anual: tabela mensal, clientes, pendentes, projeção, CSV, PDF
   version    Mostrar a versão instalada
 
 Exemplos:
@@ -266,25 +267,31 @@ Exemplos:
 
   fatura list
   fatura show INV-2026-001
+  fatura pay INV-2026-001
+  fatura summary
+  fatura summary --pdf relatorio-2026.pdf --compare 2025
   fatura send --to cliente@exemplo.pt --pdf fatura.pdf
 
-Configuração guardada em ~/.invoice/ (histórico, clientes, modelos, SMTP).`,
+Configuração guardada em ~/.fatura/ (histórico, clientes, modelos, SMTP, CSV anual).`,
 }
 
 var generateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Gerar uma fatura em PDF",
 	Long: `Gera um PDF de fatura e guarda-o automaticamente em:
-  ~/.invoice/history/<cliente>/<ano>/<mês>/<id>-<cliente>.pdf
+  ~/.fatura/history/<cliente>/<ano>/<mês>/<id>-<cliente>.pdf
 
 O número de fatura é atribuído automaticamente no formato INV-YYYY-NNN
-(ex: INV-2026-001). O contador anual é guardado em ~/.invoice/counter.json.
+(ex: INV-2026-001). O contador anual é guardado em ~/.fatura/counter.json.
+
+Após cada fatura real (não rascunho), o relatório anual CSV é actualizado:
+  ~/.fatura/relatorio-YYYY-MOEDA.csv
 
 Com --draft, é gerado um rascunho com marca de água "RASCUNHO" sem consumir
-um número do contador.
+um número do contador e sem actualizar o histórico nem o CSV.
 
 Configuração de cliente:
-  Guarde dados recorrentes em ~/.invoice/clients/<nome>.yaml e carregue-os
+  Guarde dados recorrentes em ~/.fatura/clients/<nome>.yaml e carregue-os
   com --client <nome>. Os flags da linha de comandos têm sempre precedência.
 
 Isenção de IVA:
@@ -293,7 +300,8 @@ Isenção de IVA:
 
 ATCUD:
   Obtenha o código de validação no portal AT e indique-o com --atcud-code.
-  O ATCUD aparece na fatura como <código>-<número sequencial>.
+  O ATCUD aparece na fatura como <código>-<número sequencial>. Se omitido,
+  a secção ATCUD não é apresentada no documento.
 
 Exemplos:
   fatura generate --from "Empresa, Lda." --to "Cliente, S.A." \
@@ -467,10 +475,11 @@ Exemplos:
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "Listar faturas emitidas",
-	Long: `Lista todas as faturas guardadas no histórico (~/.invoice/history.json).
+	Long: `Lista todas as faturas guardadas no histórico (~/.fatura/history.json).
 
-Mostra ID, data, cliente, total e caminho do ficheiro PDF para cada fatura.
-Os rascunhos são assinalados com [rascunho].
+Mostra ID, data, cliente, total, estado de pagamento e caminho do PDF.
+A coluna ESTADO indica "pago", "pendente" ou "—" (rascunho).
+Os rascunhos são assinalados com [rascunho] no ID.
 
 Exemplo:
   fatura list`,
@@ -508,7 +517,8 @@ Exemplo:
 var showCmd = &cobra.Command{
 	Use:   "show <id>",
 	Short: "Mostrar detalhes de uma fatura",
-	Long: `Mostra os detalhes completos de uma fatura a partir do seu ID.
+	Long: `Mostra os detalhes completos de uma fatura a partir do seu ID, incluindo
+o estado de pagamento (pendente / pago em YYYY-MM-DD HH:MM).
 
 Exemplo:
   fatura show INV-2026-001`,
